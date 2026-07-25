@@ -3,6 +3,10 @@ add_library(kathub-handlers STATIC)
 target_sources(kathub-handlers PRIVATE
     StatusHandler.h
     StatusHandler.cpp
+    WsStatusHandler.h
+    WsStatusHandler.cpp
+    PluginListHandler.h
+    PluginListHandler.cpp
 )
 
 target_include_directories(kathub-handlers PUBLIC
@@ -10,6 +14,7 @@ target_include_directories(kathub-handlers PUBLIC
     ${CMAKE_SOURCE_DIR}/backend/domain
     ${CMAKE_SOURCE_DIR}/backend/host
     ${CMAKE_SOURCE_DIR}/backend/core
+    ${CMAKE_SOURCE_DIR}/backend/transport
     ${CMAKE_SOURCE_DIR}/backend/thirdparty/cpp-httplib
 )
 

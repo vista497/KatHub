@@ -5,6 +5,11 @@ target_sources(kathub-domain PRIVATE
     IPlugin.h
     IHttpHandler.h
     HostApi.h
+    ConfigService.h
+    ConfigService.cpp
+    Event.h
+    IEventBus.h
+    EventType.cpp
 )
 
 target_include_directories(kathub-domain PUBLIC

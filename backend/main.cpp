@@ -20,6 +20,7 @@ int main(int argc, char *argv[])
     }
 
     KatHubApp app(argc, argv, mode);
+    app.configureServices();
     app.init();
     return app.run();
 }

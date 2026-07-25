@@ -1,5 +1,6 @@
 #include "HttpServer.h"
 
+#include "EventBus.h"
 #include "IHttpHandler.h"
 #include "SignalHub.h"
 #include "httplib.h"
@@ -61,6 +62,11 @@ void HttpServer::setSignalHub(KatHub::SignalHub *hub)
     signalHub_ = hub;
 }
 
+void HttpServer::setEventBus(EventBus *bus)
+{
+    eventBus_ = bus;
+}
+
 void HttpServer::stop()
 {
     if (!running_.load())
@@ -99,6 +105,13 @@ void HttpServer::registerHandler(IHttpHandler *handler)
                 QJsonObject event;
                 event[QStringLiteral("route")] = QString::fromLatin1(handler->route());
                 signalHub_->publish(QStringLiteral("http.request"), event);
+            }
+
+            // Publish event to EventBus after each request
+            if (eventBus_) {
+                QJsonObject event;
+                event[QStringLiteral("route")] = QString::fromLatin1(handler->route());
+                eventBus_->publish(QStringLiteral("http.request"), event);
             }
         };
 
@@ -151,6 +164,13 @@ void HttpServer::installHandlers()
                 QJsonObject event;
                 event[QStringLiteral("route")] = QString::fromLatin1(handler->route());
                 signalHub_->publish(QStringLiteral("http.request"), event);
+            }
+
+            // Publish event to EventBus after each request
+            if (eventBus_) {
+                QJsonObject event;
+                event[QStringLiteral("route")] = QString::fromLatin1(handler->route());
+                eventBus_->publish(QStringLiteral("http.request"), event);
             }
         };
 

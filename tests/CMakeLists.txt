@@ -1,19 +1,25 @@
 find_package(Qt6 REQUIRED COMPONENTS Core WebSockets Test Network)
 
 add_executable(kathub-tests
+    test_eventbus.cpp
     test_plugin_lifecycle.cpp
     test_status_endpoint.cpp
     test_websocket.cpp
+    test_backend_loader.cpp
+    test_json_config.cpp
+    config/test_config_service.cpp
 )
 
-# Include cpp-httplib header for the status endpoint test
+# Include directories
 target_include_directories(kathub-tests PRIVATE
     ${CMAKE_SOURCE_DIR}/backend/thirdparty/cpp-httplib
+    ${CMAKE_SOURCE_DIR}/libs/domain/include
+    ${CMAKE_SOURCE_DIR}/libs/backend/include
+    ${googletest_SOURCE_DIR}/googlemock/include
+    ${googletest_SOURCE_DIR}/googletest/include
 )
 
-# Pass the absolute path to the test plugin DLL via a compile definition.
-# $<TARGET_FILE:test_plugin> expands to the full DLL path at build time,
-# including the per-config subdirectory (Debug/Release/etc.).
+# Pass the absolute path to the test plugin DLL
 target_compile_definitions(kathub-tests PRIVATE
     "TEST_PLUGIN_DLL_PATH=\"$<TARGET_FILE:test_plugin>\""
 )
@@ -24,6 +30,9 @@ target_link_libraries(kathub-tests PRIVATE
     kathub-transport
     kathub-handlers
     kathub-core
+    kathub-eventbus
+    kathub-json-config
+    kathub-backend-loader
     gtest
     Qt6::Core
     Qt6::WebSockets
@@ -31,26 +40,50 @@ target_link_libraries(kathub-tests PRIVATE
     Qt6::Test
 )
 
-# MSVC discards static lib objects with no referenced symbols.
-# REGISTER_HANDLER uses file-scope globals — force linker to keep them.
+# Standalone json config test
+add_executable(json-config-test
+    test_json_standalone.cpp
+)
+target_include_directories(json-config-test PRIVATE
+    ${CMAKE_SOURCE_DIR}/libs/config/include
+    ${googletest_SOURCE_DIR}/googletest/include
+)
+target_link_libraries(json-config-test PRIVATE
+    kathub-json-config
+    gtest
+)
 if(MSVC)
-    target_link_options(kathub-tests PRIVATE "/WHOLEARCHIVE:kathub-handlers")
+    target_compile_options(json-config-test PRIVATE "/FS")
 endif()
 
-# cpp-httplib needs Winsock2 on Windows
+# Standalone ConfigService test (domain/ConfigService.h)
+add_executable(config-service-test
+    config/test_config_service.cpp
+)
+target_include_directories(config-service-test PRIVATE
+    ${CMAKE_SOURCE_DIR}/backend/domain
+    ${googletest_SOURCE_DIR}/googletest/include
+)
+target_link_libraries(config-service-test PRIVATE
+    kathub-domain
+    gtest
+    gtest_main
+    Qt6::Core
+)
+if(MSVC)
+    target_compile_options(config-service-test PRIVATE "/FS")
+endif()
+
+if(MSVC)
+    target_link_options(kathub-tests PRIVATE "/WHOLEARCHIVE:kathub-handlers")
+    target_compile_options(kathub-tests PRIVATE "/FS")
+endif()
+
 if(WIN32)
     target_link_libraries(kathub-tests PRIVATE ws2_32)
 endif()
 
-# ---------------------------------------------------------------------------
-# CTest integration
-# We use add_test + ENVIRONMENT_MODIFICATION instead of gtest_discover_tests
-# because gtest_discover_tests runs the executable at *build* time (to list
-# test cases), and that step needs Qt DLLs on PATH.  add_test only runs at
-# ctest time where the user controls the environment.
-# ---------------------------------------------------------------------------
-
-# Derive Qt binary directory for runtime PATH
+# CTest
 get_filename_component(_qt_prefix "${Qt6_DIR}/../.." ABSOLUTE)
 set(_qt_bin "${_qt_prefix}/bin")
 
@@ -58,3 +91,5 @@ add_test(NAME kathub-tests COMMAND kathub-tests)
 set_property(TEST kathub-tests PROPERTY
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${_qt_bin}"
 )
+
+add_test(NAME json-config-test COMMAND json-config-test)

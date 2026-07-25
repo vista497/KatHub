@@ -48,8 +48,12 @@ void WsServer::start(quint16 port)
     if (m_server->isListening())
         return;
 
+    m_port = port;
+
     if (m_server->listen(QHostAddress::Any, port)) {
-        qDebug() << "WsServer listening on port" << port;
+        // In case port 0 was passed, read back the OS-assigned port.
+        m_port = m_server->serverPort();
+        qDebug() << "WsServer listening on port" << m_port;
         m_pingTimer->start();
     } else {
         qWarning() << "WsServer failed to listen on port" << port
@@ -78,11 +82,27 @@ void WsServer::stop()
     m_clients.clear();
 
     m_server->close();
+    m_port = 0;
 }
 
 bool WsServer::isRunning() const
 {
     return m_server->isListening();
+}
+
+int WsServer::clientCount() const
+{
+    return m_clients.size();
+}
+
+QStringList WsServer::subscribedTopics() const
+{
+    return m_subscriptions.keys();
+}
+
+quint16 WsServer::port() const
+{
+    return m_port;
 }
 
 QString WsServer::errorString() const
@@ -141,12 +161,9 @@ void WsServer::onTextMessageReceived(const QString &message)
                     this, &WsServer::onSignalPublished,
                     Qt::UniqueConnection);
 
-            // Register callback with SignalHub (the signal itself is the
-            // primary delivery mechanism; the callback is a safety net).
-            auto callback = [this](const QJsonObject &data) {
-                broadcast(data);
-            };
-            int handle = m_hub->subscribe(topic, callback);
+            // Delivery is handled by the signalPublished → onSignalPublished
+            // connection. The callback is just a no-op placeholder.
+            int handle = m_hub->subscribe(topic, [](const QJsonObject &) {});
             m_subscriptions.insert(topic, handle);
 
             qDebug() << "WsServer: subscribed to topic" << topic;
@@ -157,6 +174,18 @@ void WsServer::onTextMessageReceived(const QString &message)
         ack[QStringLiteral("type")] = QStringLiteral("subscribed");
         ack[QStringLiteral("topic")] = topic;
         sock->sendTextMessage(QJsonDocument(ack).toJson(QJsonDocument::Compact));
+
+    } else if (type == QStringLiteral("publish")) {
+        // Bridge client message to EventBus via SignalHub.
+        const QString topic = obj.value(QStringLiteral("topic")).toString();
+        if (topic.isEmpty()) {
+            qWarning() << "WsServer: publish without topic";
+            return;
+        }
+        QJsonObject data = obj.value(QStringLiteral("data")).toObject();
+        m_hub->publish(topic, data);
+
+        qDebug() << "WsServer: client published to topic" << topic;
 
     } else {
         qDebug() << "WsServer: unknown message type:" << type;
