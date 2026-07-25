@@ -75,17 +75,21 @@ function parseContent(raw: string, role: string): ContentBlock[] {
     return blocks
   }
 
-  // Extract <speak> tag — use for a compact spoken prefix
+  // Extract <speak> tag — use for compact spoken prefix
   const speakMatch = content.match(/<speak>([\s\S]*?)<\/speak>/)
+  const speakContent = speakMatch ? speakMatch[1].trim() : ''
   if (speakMatch) {
-    // Clean up speak tag from main content
+    // Remove speak tag from content
     content = content.replace(/<speak>[\s\S]*?<\/speak>\s*/g, '').trim()
   }
 
-  // Extract <detail> if present
+  // Extract <detail> if present — this is the authoritative UI content
   const detailMatch = content.match(/<detail>([\s\S]*?)<\/detail>/)
   if (detailMatch) {
     content = detailMatch[1].trim()
+  } else if (!content && speakContent) {
+    // No detail AND nothing outside speak — use speak content
+    content = speakContent
   }
 
   return [{ type: 'text', content }]
@@ -124,7 +128,10 @@ function renderMarkdown(text: string): string {
   return marked.parse(text, { renderer }) as string
 }
 
-const blocks = computed(() => parseContent(props.message.content, props.message.role))
+const blocks = computed(() =>
+  parseContent(props.message.content, props.message.role)
+    .filter(b => b.content.trim())
+)
 
 const timeStr = computed(() =>
   new Date(props.message.timestamp).toLocaleTimeString([], {
