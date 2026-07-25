@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useSidebarStore } from '../../stores/sidebarStore'
 import SidebarSection from './SidebarSection.vue'
-import AiSessions from './AiSessions.vue'
 
 const sidebar = useSidebarStore()
 </script>
@@ -16,10 +15,6 @@ const sidebar = useSidebarStore()
     </div>
 
     <div class="sidebar-content" v-if="!sidebar.collapsed">
-      <SidebarSection title="AI Sessions" name="ai">
-        <AiSessions />
-      </SidebarSection>
-
       <SidebarSection title="Settings" name="settings">
         <div class="settings-list">
           <router-link to="/settings/plugins">⚙️ Plugins</router-link>

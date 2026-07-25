@@ -9,9 +9,8 @@ const graph = useGraphStore()
 
 let simulation: d3.Simulation<any, any> | null = null
 let currentZoom = 1
-const LABEL_ZOOM_THRESHOLD = 1.5  // Show labels when zoom >= 1.5x
+const LABEL_ZOOM_THRESHOLD = 1.5
 
-// Track drag state to distinguish click vs drag
 let dragged = false
 
 function initGraph() {
@@ -20,21 +19,17 @@ function initGraph() {
   const width = container.value.clientWidth
   const height = container.value.clientHeight
 
-  // Clear
   d3.select(svgRef.value).selectAll('*').remove()
 
   const svg = d3.select(svgRef.value)
     .attr('width', width)
     .attr('height', height)
-    .attr('will-change', 'transform')  // GPU hint for WebEngine
 
-  // Background
   svg.append('rect')
     .attr('width', width)
     .attr('height', height)
     .attr('fill', 'transparent')
 
-  // Zoom group
   const g = svg.append('g')
 
   const zoom = d3.zoom<SVGSVGElement, unknown>()
@@ -47,7 +42,6 @@ function initGraph() {
 
   svg.call(zoom)
 
-  // Defs for glow filter
   const defs = svg.append('defs')
   const filter = defs.append('filter').attr('id', 'glow')
   filter.append('feGaussianBlur').attr('stdDeviation', '2.5').attr('result', 'blur')
@@ -63,7 +57,7 @@ function initGraph() {
     .attr('stroke', 'rgba(124,92,255,0.12)')
     .attr('stroke-width', 0.4)
 
-  // Nodes group
+  // Nodes
   const node = g.append('g')
     .selectAll('g')
     .data(graph.nodes)
@@ -71,10 +65,8 @@ function initGraph() {
     .attr('cursor', 'pointer')
     .attr('class', (d: any) => `node-${d.type}`)
 
-  // Click vs drag detection
   node.on('pointerdown', () => { dragged = false })
 
-  // Drag behavior
   const drag = d3.drag<any, any>()
     .on('start', (_event, d) => {
       if (!_event.active) simulation!.alphaTarget(0.3).restart()
@@ -94,8 +86,8 @@ function initGraph() {
 
   node.call(drag)
 
-  // Main circle with glow
-  node.append('circle')
+  // Circles
+  const circles = node.append('circle')
     .attr('r', (d: any) => d.type === 'folder' ? 7 : 4)
     .attr('fill', (d: any) => {
       switch (d.type) {
@@ -105,11 +97,17 @@ function initGraph() {
       }
     })
     .attr('opacity', 0.9)
-    .attr('stroke', (d: any) => d.id === graph.selectedNode ? '#ffffff' : 'transparent')
-    .attr('stroke-width', (d: any) => d.id === graph.selectedNode ? 2 : 0)
-    .attr('filter', (d: any) => d.id === graph.selectedNode ? 'url(#glow)' : null)
 
-  // Labels — visibility controlled by zoom
+  // Public function to update selection styling WITHOUT reinit
+  function updateSelection(id: string | null) {
+    circles
+      .attr('stroke', (d: any) => d.id === id ? '#ffffff' : 'transparent')
+      .attr('stroke-width', (d: any) => d.id === id ? 2 : 0)
+      .attr('filter', (d: any) => d.id === id ? 'url(#glow)' : null)
+  }
+  updateSelection(graph.selectedNode)
+
+  // Labels
   const labels = node.append('text')
     .text((d: any) => d.label)
     .attr('font-size', '9px')
@@ -125,29 +123,32 @@ function initGraph() {
     labels.attr('opacity', show ? 0.8 : 0)
   }
 
-  // Click — open file editor (note) or select (folder)
+  // Click — open file or select
   node.on('click', (_event: any, d: any) => {
-    if (dragged) return  // Ignore drag-induced clicks
+    if (dragged) return
+    const newSelection = d.id === graph.selectedNode ? null : d.id
+    graph.selectNode(newSelection)
+    updateSelection(newSelection)  // Visual only, no sim restart
     if (d.type === 'note') {
       graph.openFile(d.id)
     }
-    graph.selectNode(d.id === graph.selectedNode ? null : d.id)
   })
 
-  // Click on background to deselect
+  // Background click — deselect
   svg.on('click', (event: any) => {
     if (event.target === svgRef.value) {
       graph.clearSelection()
+      updateSelection(null)
     }
   })
 
-  // Simulation — strong centripetal force to keep orphans close
+  // Simulation
   simulation = d3.forceSimulation(graph.nodes)
     .force('link', d3.forceLink(graph.links).id((d: any) => d.id).distance(40).strength(0.3))
-    .force('charge', d3.forceManyBody().strength(-80))
-    .force('center', d3.forceCenter(width / 2, height / 2).strength(0.15))  // Stronger center pull!
-    .force('collision', d3.forceCollide().radius(10))
-    .alphaDecay(0.02)  // Slower cool-down = more settling time
+    .force('charge', d3.forceManyBody().strength(-30))
+    .force('center', d3.forceCenter(width / 2, height / 2).strength(0.4))
+    .force('collision', d3.forceCollide().radius(8))
+    .alphaDecay(0.015)
     .on('tick', () => {
       link
         .attr('x1', (d: any) => d.source.x)
@@ -157,18 +158,18 @@ function initGraph() {
       node.attr('transform', (d: any) => `translate(${d.x},${d.y})`)
     })
 
+  // Store updateSelection for the WATCH BELOW — no reinit
+  ;(window as any).__updateGalaxySelection = updateSelection
 }
 
 function onResize() {
   initGraph()
 }
 
-// Emit for parent: file editor panel
 const emit = defineEmits<{
   (e: 'open-file', path: string): void
 }>()
 
-// Watch for file editor from parent
 watch(() => graph.editingFile, (val) => {
   if (val) emit('open-file', val)
 })
@@ -183,6 +184,7 @@ onUnmounted(() => {
   simulation?.stop()
 })
 
+// Init graph when nodes arrive
 watch(() => graph.nodes.length, async () => {
   if (graph.nodes.length) {
     await nextTick()
@@ -190,36 +192,32 @@ watch(() => graph.nodes.length, async () => {
   }
 })
 
-watch(() => graph.selectedNode, () => {
-  if (graph.nodes.length) initGraph()
+// Selection change — VISUAL UPDATE ONLY, no reinit
+watch(() => graph.selectedNode, (newVal) => {
+  const fn = (window as any).__updateGalaxySelection
+  if (fn) fn(newVal)
 })
 </script>
 
 <template>
   <div ref="container" class="graph-container">
-    <!-- Starfield background -->
     <div class="starfield"></div>
 
-    <!-- Loading -->
     <div v-if="graph.loading" class="overlay">
       <div class="loading-text">Loading galaxy...</div>
     </div>
 
-    <!-- Error -->
     <div v-else-if="graph.error" class="overlay">
       <div class="error-text">⚠️ {{ graph.error }}</div>
       <button class="retry-btn" @click="graph.fetchGraph">Retry</button>
     </div>
 
-    <!-- SVG -->
     <svg ref="svgRef" class="graph-svg"></svg>
 
-    <!-- Selected node info bar -->
     <div v-if="graph.selectedNode" class="node-info">
       {{ graph.selectedNode }}
     </div>
 
-    <!-- Zoom hint -->
     <div class="zoom-hint" :class="{ hidden: currentZoom >= LABEL_ZOOM_THRESHOLD }">
       🔍 Zoom in for labels
     </div>
@@ -232,7 +230,7 @@ watch(() => graph.selectedNode, () => {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  contain: strict;  /* Paint containment for WebEngine perf */
+  contain: strict;
 }
 
 .starfield {
