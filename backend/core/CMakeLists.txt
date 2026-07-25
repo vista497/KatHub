@@ -11,6 +11,8 @@ target_sources(kathub-core PRIVATE
     SettingsRegistry.cpp
     Logger.h
     Logger.cpp
+    CrashHandler.h
+    CrashHandler.cpp
 )
 
 target_include_directories(kathub-core PUBLIC

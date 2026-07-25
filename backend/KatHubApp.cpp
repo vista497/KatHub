@@ -17,6 +17,8 @@
 #include "ai/ToolDispatcher.h"
 #include "prompts/PromptManager.h"
 #include "prompts/AgentProfile.h"
+#include "core/CrashHandler.h"
+#include "core/Logger.h"
 
 #include <QApplication>
 #include <QCoreApplication>
@@ -61,6 +63,34 @@ KatHubApp::KatHubApp(int argc, char *argv[], Mode mode)
 
     std::signal(SIGINT, signalHandler);
     std::signal(SIGTERM, signalHandler);
+
+    // ── Crash Handler ──────────────────────────────────────────
+    // Install Windows SEH crash handler for self-diagnosis on crash.
+    {
+        std::string logDir;
+        // Use AppData for crash logs.
+        const char *appdata = std::getenv("APPDATA");
+        if (appdata)
+            logDir = std::string(appdata) + "/KatHub/logs";
+        else
+            logDir = "logs";  // fallback
+
+        // Callback: publish crash to SignalHub (if alive) + Logger.
+        auto onPanic = [](const std::string &info) {
+            // Write to Logger as last resort.
+            KatHub::Logger::instance().error("[CRASH] " + info, "CrashHandler");
+        };
+
+        KatHub::CrashHandler::install(logDir, onPanic);
+
+        // Check for previous crash.
+        if (KatHub::CrashHandler::hadPreviousCrash()) {
+            std::string prevPanic = KatHub::CrashHandler::readPanicLog();
+            std::cerr << "\n*** WARNING: Previous run ended with a crash! ***\n\n";
+            std::cerr << prevPanic << "\n";
+            std::cerr << "*** End of previous crash report ***\n\n";
+        }
+    }
 
     // Create config loader early so CLI args can override it.
     config_ = std::make_unique<JsonConfigLoader>();
