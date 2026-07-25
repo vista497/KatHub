@@ -10,15 +10,20 @@
 #include "WsStatusHandler.h"
 #include "PluginListHandler.h"
 #include "ChatHandler.h"
+#include "HermesSessionsHandler.h"
 
 // Forward declare dummy functions to force-link non-QObject handlers.
 namespace {
     void force_link_vaultgraph() {
-        // Force linker to pull in the VaultGraphHandler translation unit.
-        // REGISTER_HANDLER creates a static init object; referencing ANY
-        // symbol from the TU (e.g. the class itself) forces the linker
-        // to include it.
         VaultGraphHandler h;
+        (void)h.route();
+    }
+    void force_link_chat() {
+        ChatHandler h;
+        (void)h.route();
+    }
+    void force_link_hermes_sessions() {
+        HermesSessionsHandler h;
         (void)h.route();
     }
 }
@@ -29,9 +34,10 @@ void force_handlers_link()
     volatile auto p1 = &StatusHandler::staticMetaObject;
     volatile auto p3 = &WsStatusHandler::staticMetaObject;
     volatile auto p4 = &PluginListHandler::staticMetaObject;
-    volatile auto p5 = &ChatHandler::staticMetaObject;
-    (void)p1; (void)p3; (void)p4; (void)p5;
+    (void)p1; (void)p3; (void)p4;
 
-    // Non-QObject handlers — call dummy force-link function.
+    // Non-QObject handlers — call dummy force-link functions.
     force_link_vaultgraph();
+    force_link_chat();
+    force_link_hermes_sessions();
 }

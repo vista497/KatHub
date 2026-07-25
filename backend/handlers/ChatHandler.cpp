@@ -1,74 +1,42 @@
 #include "ChatHandler.h"
+#include "HermesApiClient.h"
 #include "PluginRegistry.h"
-#include "AIController.h"
-#include "AgentProfile.h"
-#include "PromptManager.h"
 
 #include "httplib.h"
-
-// windows.h (pulled in by httplib.h) defines DELETE as a macro.
-#ifdef DELETE
-#undef DELETE
-#endif
 
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
-#include <QEventLoop>
-#include <QTimer>
 
+#include <memory>
+#include <chrono>
 #include <iostream>
 
-// ---------------------------------------------------------------------------
-// Auto-registration via REGISTER_HANDLER macro (runs before main)
-// ---------------------------------------------------------------------------
-REGISTER_HANDLER(ChatHandler)
-
-// ---------------------------------------------------------------------------
 ChatHandler::ChatHandler() = default;
 
-const char *ChatHandler::route()
+const char* ChatHandler::route() { return "/api/chat"; }
+
+IHttpHandler::HttpMethod ChatHandler::method() { return HttpMethod::POST; }
+
+void ChatHandler::setApiClient(std::shared_ptr<HermesApiClient> client)
 {
-    return "/api/chat";
+    api_ = std::move(client);
 }
 
-IHttpHandler::HttpMethod ChatHandler::method()
+void ChatHandler::handle(const char* request, void* response)
 {
-    return IHttpHandler::HttpMethod::POST;
-}
+    auto* res = static_cast<httplib::Response*>(response);
 
-void ChatHandler::setAIController(KatHub::AIController *ctrl)
-{
-    m_aiCtrl = ctrl;
-}
-
-void ChatHandler::setPromptManager(KatHub::PromptManager *pm)
-{
-    m_promptMgr = pm;
-}
-
-void ChatHandler::handle(const char *request, void *response)
-{
-    auto *res = static_cast<httplib::Response *>(response);
-
-    // --- Validate dependencies ---
-    if (!m_aiCtrl) {
-        // Fallback: echo mode when AI Controller is not configured.
-        // Simply echo the raw request body back.
-        QJsonObject echoObj;
-        echoObj[QStringLiteral("reply")] =
-            QStringLiteral("[Echo mode] AI engine offline. Request received: %1 bytes")
-                .arg(static_cast<int>(strlen(request)));
-        QByteArray echoJson = QJsonDocument(echoObj).toJson(QJsonDocument::Compact);
-        res->set_content(echoJson.toStdString(), "application/json");
+    if (!api_) {
+        res->set_content(R"({"error":"Hermes API client not configured"})", "application/json");
+        res->status = 500;
         return;
     }
 
-    // --- Parse request JSON ---
+    // Parse incoming JSON: {"message":"...", "sessionId":"..."}
     QJsonParseError parseErr;
     QJsonDocument reqDoc = QJsonDocument::fromJson(
-        QByteArray::fromRawData(request, static_cast<int>(strlen(request))),
-        &parseErr);
+        QByteArray::fromRawData(request, static_cast<int>(strlen(request))), &parseErr);
 
     if (parseErr.error != QJsonParseError::NoError || !reqDoc.isObject()) {
         res->status = 400;
@@ -77,125 +45,42 @@ void ChatHandler::handle(const char *request, void *response)
     }
 
     QJsonObject reqObj = reqDoc.object();
-    QString message = reqObj.value(QStringLiteral("message")).toString().trimmed();
+    QString message = reqObj.value("message").toString().trimmed();
     if (message.isEmpty()) {
         res->status = 400;
         res->set_content(R"({"error":"Missing 'message' field"})", "application/json");
         return;
     }
 
-    QString agentName = reqObj.value(QStringLiteral("agent")).toString(QStringLiteral("default"));
+    QString sessionId = reqObj.value("sessionId").toString();
+    std::string sid = sessionId.toStdString();
 
-    // --- Resolve agent profile and system prompt ---
-    // Load profiles (use defaults if no file specified; ChatHandler uses
-    // PromptManager's base directory for template resolution).
-    QString systemPrompt;
-    QList<KatHub::AgentProfile> profiles;
-    if (m_promptMgr) {
-        // Try loading profiles from the prompt manager's base directory
-        QString profilesPath = m_promptMgr->baseDir() + QStringLiteral("/profiles.json");
-        profiles = KatHub::AgentProfile::loadFromFile(profilesPath);
-    }
-    if (profiles.isEmpty()) {
-        profiles = KatHub::AgentProfile::defaults();
-    }
-
-    KatHub::AgentProfile profile = KatHub::AgentProfile::find(profiles, agentName);
-    if (profile.name.isEmpty()) {
-        res->status = 400;
-        QJsonObject err;
-        err[QStringLiteral("error")] =
-            QStringLiteral("Unknown agent: %1").arg(agentName);
-        QByteArray errJson = QJsonDocument(err).toJson(QJsonDocument::Compact);
-        res->set_content(errJson.toStdString(), "application/json");
-        return;
-    }
-
-    // Resolve system prompt: if it's a file path, load via PromptManager
-    if (profile.isSystemPromptPath() && m_promptMgr) {
-        // Extract template name from path (e.g. "templates/default-system")
-        QString tmplName = profile.systemPrompt;
-        if (tmplName.endsWith(QStringLiteral(".md")) ||
-            tmplName.endsWith(QStringLiteral(".txt"))) {
-            // Remove extension for PromptManager::process
-            tmplName.chop(tmplName.contains(QStringLiteral(".md")) ? 3 : 4);
+    // If no session, create one via Hermes API
+    if (sid.empty()) {
+        std::string createResp = api_->createSession();
+        QJsonDocument cd = QJsonDocument::fromJson(QByteArray::fromStdString(createResp));
+        if (cd.isObject() && cd.object().contains("session_id")) {
+            sid = cd.object()["session_id"].toString().toStdString();
+        } else {
+            // Fallback: use a generated ID
+            sid = "kat-" + std::to_string(
+                std::chrono::steady_clock::now().time_since_epoch().count());
         }
-        systemPrompt = m_promptMgr->process(tmplName);
-    } else {
-        systemPrompt = profile.systemPrompt;
     }
 
-    // If system prompt is still empty, use a fallback
-    if (systemPrompt.isEmpty()) {
-        systemPrompt = QStringLiteral("You are a helpful assistant.");
+    // Forward to Hermes API
+    std::string replyJson = api_->chat(sid, message.toStdString());
+
+    // Inject sessionId into response so frontend can track it
+    QJsonDocument replyDoc = QJsonDocument::fromJson(QByteArray::fromStdString(replyJson));
+    QJsonObject replyObj;
+    if (replyDoc.isObject()) {
+        replyObj = replyDoc.object();
     }
+    replyObj["sessionId"] = QString::fromStdString(sid);
 
-    // --- Set system prompt on conversation ---
-    m_aiCtrl->setSystemPrompt(systemPrompt);
-
-    // --- Send message and wait for response ---
-    // AIController::sendMessage is asynchronous; use QEventLoop to block
-    // the handler thread until textReady or a timeout.
-    QString reply;
-    bool gotReply = false;
-    bool gotError = false;
-    QString errorMsg;
-
-    QEventLoop loop;
-    QTimer timeout;
-    timeout.setSingleShot(true);
-
-    // Capture the signals before sending
-    QMetaObject::Connection connText =
-        QObject::connect(m_aiCtrl, &KatHub::AIController::textReady,
-            [&](const QString &text) {
-                reply = text;
-                gotReply = true;
-                loop.quit();
-            });
-
-    QMetaObject::Connection connErr =
-        QObject::connect(m_aiCtrl, &KatHub::AIController::error,
-            [&](const QString &msg) {
-                errorMsg = msg;
-                gotError = true;
-                loop.quit();
-            });
-
-    QMetaObject::Connection connTimeout =
-        QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
-
-    // 30-second timeout for AI response
-    timeout.start(30000);
-
-    // Fire the request
-    m_aiCtrl->sendMessage(message);
-
-    // Block until response, error, or timeout
-    loop.exec();
-
-    // Clean up connections
-    QObject::disconnect(connText);
-    QObject::disconnect(connErr);
-    QObject::disconnect(connTimeout);
-
-    // --- Build response ---
-    QJsonObject respObj;
-    respObj[QStringLiteral("agent")] = agentName;
-
-    if (gotError) {
-        respObj[QStringLiteral("reply")] =
-            QStringLiteral("Error: %1").arg(errorMsg);
-        res->status = 500;
-    } else if (!gotReply) {
-        respObj[QStringLiteral("reply")] =
-            QStringLiteral("Request timed out after 30 seconds.");
-        res->status = 504;
-    } else {
-        respObj[QStringLiteral("reply")] = reply;
-        res->status = 200;
-    }
-
-    QByteArray respJson = QJsonDocument(respObj).toJson(QJsonDocument::Compact);
-    res->set_content(respJson.toStdString(), "application/json");
+    QByteArray respJson = QJsonDocument(replyObj).toJson(QJsonDocument::Compact);
+    res->set_content(respJson.toStdString(), "application/json; charset=utf-8");
 }
+
+REGISTER_HANDLER(ChatHandler)

@@ -14,164 +14,158 @@ export interface ChatSession {
   messages: ChatMessage[]
 }
 
-const STORAGE_KEY = 'kathub-chat-sessions'
-const DEFAULT_SESSION_ID = 'telegram-default'
-
-function loadSessions(): ChatSession[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed
-    }
-  } catch { /* ignore */ }
-  return []
-}
-
-function saveSessions(sessions: ChatSession[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
-  } catch { /* quota exceeded */ }
-}
-
-let messageCounter = 0
-
 export const useChatStore = defineStore('chat', () => {
-  const sessions = ref<ChatSession[]>(loadSessions())
+  const sessions = ref<ChatSession[]>([])
   const activeSessionId = ref<string | null>(null)
   const panelOpen = ref(false)
   const sessionsVisible = ref(true)
   const sending = ref(false)
   const messages = ref<ChatMessage[]>([])
+  const loading = ref(false)
 
-  // Init: ensure at least the default session exists
-  function initSessions() {
-    if (sessions.value.length === 0) {
-      sessions.value.push({
-        id: DEFAULT_SESSION_ID,
-        title: 'Telegram',
+  // ── Load sessions from Hermes API ───────────────────────────
+  async function loadSessions() {
+    loading.value = true
+    try {
+      const resp = await fetch('/api/hermes/sessions')
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const data = await resp.json()
+      // Hermes API returns array of {session_id, title, created_at, ...}
+      const raw: any[] = Array.isArray(data) ? data : (data.sessions || [])
+      sessions.value = raw.map((s: any) => ({
+        id: s.session_id || s.id,
+        title: s.title || s.session_id || 'Untitled',
         messages: []
-      })
-      saveSessions(sessions.value)
+      }))
+    } catch (e) {
+      console.warn('Failed to load Hermes sessions:', e)
+      sessions.value = []
+    } finally {
+      loading.value = false
     }
-    // Pick active: last-used or first available
-    const lastUsed = localStorage.getItem('kathub-active-session')
-    const found = lastUsed
-      ? sessions.value.find(s => s.id === lastUsed)
-      : null
-    if (found) {
-      activeSessionId.value = found.id
-    } else {
-      activeSessionId.value = sessions.value[0]?.id || null
-    }
-    loadActiveMessages()
   }
 
-  function loadActiveMessages() {
-    const s = sessions.value.find(s => s.id === activeSessionId.value)
-    messages.value = s ? [...s.messages] : []
-  }
-
-  function persistCurrentSession() {
-    const s = sessions.value.find(s => s.id === activeSessionId.value)
-    if (s) {
-      s.messages = [...messages.value]
-      const firstUser = s.messages.find(m => m.role === 'user')
-      if (firstUser && s.title === 'New chat') {
-        s.title = firstUser.content.slice(0, 30)
+  // ── Load messages for a session ─────────────────────────────
+  async function loadMessages(sessionId: string) {
+    try {
+      const resp = await fetch(`/api/hermes/sessions/${sessionId}`)
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const data = await resp.json()
+      // Hermes API returns array of {id, role, content, created_at, ...}
+      const raw: any[] = Array.isArray(data) ? data : (data.messages || [])
+      // Update the session's messages cache
+      const s = sessions.value.find(s => s.id === sessionId)
+      if (s) {
+        s.messages = raw.map((m: any) => ({
+          id: m.id || m.message_id || String(Math.random()),
+          role: m.role || 'assistant',
+          content: typeof m.content === 'string' ? m.content
+            : (m.content?.text || JSON.stringify(m.content)),
+          timestamp: m.created_at ? new Date(m.created_at).getTime() : Date.now()
+        }))
       }
-      saveSessions(sessions.value)
-      if (activeSessionId.value) {
-        localStorage.setItem('kathub-active-session', activeSessionId.value)
-      }
+      return s?.messages || []
+    } catch (e) {
+      console.warn('Failed to load messages:', e)
+      return []
     }
   }
 
+  // ── Open a session (load messages + activate) ───────────────
+  async function openSession(sessionId: string) {
+    activeSessionId.value = sessionId
+    panelOpen.value = true
+    messages.value = await loadMessages(sessionId)
+  }
+
+  // ── Send message ────────────────────────────────────────────
   async function sendMessage(text: string) {
     if (!text.trim() || sending.value) return
-    if (!activeSessionId.value) {
-      newSession()
-    }
+
+    // Ensure we have a session
+    let sid = activeSessionId.value
 
     const msg: ChatMessage = {
-      id: String(++messageCounter),
+      id: 'local-' + Date.now(),
       role: 'user',
       content: text,
       timestamp: Date.now()
     }
     messages.value.push(msg)
-    persistCurrentSession()
     sending.value = true
 
     try {
       const resp = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text })
+        body: JSON.stringify({ message: text, sessionId: sid || '' })
       })
       const data = await resp.json()
+
+      // If server gave us a sessionId back, use it
+      if (data.sessionId && !sid) {
+        sid = data.sessionId
+        activeSessionId.value = sid
+        // Reload sessions list (new session was created)
+        loadSessions()
+      }
+
       messages.value.push({
-        id: String(++messageCounter),
+        id: data.message_id || 'msg-' + Date.now(),
         role: 'assistant',
-        content: data.reply || data.error || 'No response',
+        content: data.reply || data.content || data.output || data.error || 'No response',
         timestamp: Date.now()
       })
-      persistCurrentSession()
     } catch (e) {
       messages.value.push({
-        id: String(++messageCounter),
+        id: 'err-' + Date.now(),
         role: 'assistant',
         content: 'Error: cannot reach server',
         timestamp: Date.now()
       })
-      persistCurrentSession()
     } finally {
       sending.value = false
     }
   }
 
-  function newSession() {
-    const id = 'session-' + Date.now()
+  // ── Create new session ──────────────────────────────────────
+  async function newSession() {
+    const id = 'new-' + Date.now()
     const session: ChatSession = { id, title: 'New chat', messages: [] }
     sessions.value.unshift(session)
-    saveSessions(sessions.value)
     activeSessionId.value = id
     messages.value = []
     panelOpen.value = true
-    localStorage.setItem('kathub-active-session', id)
   }
 
-  function openSession(sessionId: string) {
-    activeSessionId.value = sessionId
-    loadActiveMessages()
-    panelOpen.value = true
-    localStorage.setItem('kathub-active-session', sessionId)
-  }
-
+  // ── Delete session ──────────────────────────────────────────
   function deleteSession(sessionId: string) {
     sessions.value = sessions.value.filter(s => s.id !== sessionId)
-    saveSessions(sessions.value)
     if (activeSessionId.value === sessionId) {
-      activeSessionId.value = sessions.value[0]?.id || null
-      loadActiveMessages()
-      localStorage.setItem('kathub-active-session', activeSessionId.value || '')
+      const next = sessions.value[0]
+      activeSessionId.value = next?.id || null
+      if (next) {
+        loadMessages(next.id).then(msgs => { messages.value = msgs })
+      } else {
+        messages.value = []
+      }
     }
   }
 
-  function closePanel() {
-    panelOpen.value = false
-  }
+  function closePanel() { panelOpen.value = false }
+  function toggleSessions() { sessionsVisible.value = !sessionsVisible.value }
 
-  function toggleSessions() {
-    sessionsVisible.value = !sessionsVisible.value
-  }
-
-  // Initialize
-  initSessions()
+  // ── Initialize ──────────────────────────────────────────────
+  loadSessions().then(() => {
+    if (sessions.value.length > 0) {
+      openSession(sessions.value[0].id)
+    }
+  })
 
   return {
-    messages, sessions, activeSessionId, panelOpen, sessionsVisible, sending,
+    messages, sessions, activeSessionId, panelOpen, sessionsVisible,
+    sending, loading,
     sendMessage, newSession, openSession, deleteSession,
-    closePanel, toggleSessions,
+    closePanel, toggleSessions, loadSessions, loadMessages,
   }
 })

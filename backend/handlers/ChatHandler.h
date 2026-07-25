@@ -2,34 +2,26 @@
 
 #include "IHttpHandler.h"
 
-#include <QString>
-#include <QObject>
+#include <memory>
+#include <string>
 
-namespace KatHub {
-class AIController;
-class PromptManager;
-}
+class HermesApiClient;
 
-// Built-in handler: POST /api/chat
-// Accepts JSON: {"message": "user text", "agent": "default"}
-// Returns JSON:  {"reply": "...", "agent": "default"}
-//
-// Uses AIController for AI processing, PromptManager + AgentProfile
-// for system prompt injection.
+// Chat handler — proxies messages to Hermes Agent API Server.
+// Accepts: POST /api/chat  {"message":"...", "sessionId":"..."}
+// Returns: JSON with "reply" and "sessionId" fields.
+
 class ChatHandler : public IHttpHandler
 {
 public:
     ChatHandler();
 
-    const char *route() override;
-    HttpMethod method() override;
-    void handle(const char *request, void *response) override;
+    const char* route() override;
+    HttpMethod  method() override;
+    void        handle(const char* request, void* response) override;
 
-    // Inject dependencies (called during KatHubApp::init).
-    void setAIController(KatHub::AIController *ctrl);
-    void setPromptManager(KatHub::PromptManager *pm);
+    void setApiClient(std::shared_ptr<HermesApiClient> client);
 
 private:
-    KatHub::AIController  *m_aiCtrl = nullptr;
-    KatHub::PromptManager *m_promptMgr = nullptr;
+    std::shared_ptr<HermesApiClient> api_;
 };

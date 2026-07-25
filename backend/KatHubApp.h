@@ -20,6 +20,8 @@ class HandWindow;
 class AIController;
 class PromptManager;
 }
+class HermesApiClient;
+
 // Composition root for the KatHub application.
 // Owns all major subsystems and wires them together.
 class KatHubApp
@@ -100,6 +102,9 @@ private:
 
     // Subsystems (Hand mode).
     std::unique_ptr<KatHub::HandWindow> handWindow_;
+
+    // Hermes Agent API client (shared across handlers).
+    std::shared_ptr<HermesApiClient> hermesApi_;
 
     // Watchdog state.
     std::unique_ptr<QProcess> watchdogChild_;

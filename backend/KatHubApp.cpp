@@ -15,6 +15,8 @@
 #include "WsServer.h"
 #include "WsStatusHandler.h"
 #include "ChatHandler.h"
+#include "HermesApiClient.h"
+#include "HermesSessionsHandler.h"
 #include "ai/AIController.h"
 #include "ai/Conversation.h"
 #include "ai/ToolDispatcher.h"
@@ -30,6 +32,8 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
+#include <QTextStream>
 #include <QJsonObject>
 #include <QProcess>
 #include <QString>
@@ -326,6 +330,41 @@ void KatHubApp::init()
             std::cout << "Registered handler: " << sh2->route() << std::endl;
         }
 
+        // ── Hermes Agent API client ──────────────────────────────
+        // Read API key from .env file (same as Hermes uses).
+        {
+            QString apiKey;
+            QFile envFile(
+                QDir(QDir::homePath())
+                    .absoluteFilePath("AppData/Local/hermes/.env"));
+            if (envFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QTextStream in(&envFile);
+                while (!in.atEnd()) {
+                    QString line = in.readLine().trimmed();
+                    if (line.startsWith("API_SERVER_KEY=")) {
+                        apiKey = line.mid(15);  // 15 = len("API_SERVER_KEY=")
+                        break;
+                    }
+                }
+                envFile.close();
+            }
+            if (apiKey.isEmpty()) {
+                std::cerr << "WARNING: Hermes API key not found in .env" << std::endl;
+            }
+            hermesApi_ = std::make_shared<HermesApiClient>(
+                "http://127.0.0.1:8642", apiKey.toStdString());
+            std::cout << "Hermes API client created (alive="
+                      << (hermesApi_->isAlive() ? "yes" : "no") << ")" << std::endl;
+        }
+
+        // ── Hermes Sessions handler ─────────────────────────────
+        {
+            auto *hsh = new HermesSessionsHandler();
+            hsh->setApiClient(hermesApi_);
+            httpServer_->registerHandler(hsh);
+            std::cout << "Registered handler: " << hsh->route() << std::endl;
+        }
+
         const auto &staticHandlers = StaticHandlerRegistry::instance().handlers();
         for (auto *handler : staticHandlers) {
             // If the handler is a StatusHandler, give it the SignalHub.
@@ -336,10 +375,9 @@ void KatHubApp::init()
             if (auto *wsh = dynamic_cast<WsStatusHandler *>(handler)) {
                 wsh->setWsServer(wsServer_.get());
             }
-            // If the handler is a ChatHandler, inject AI dependencies.
+            // If the handler is a ChatHandler, inject Hermes API client.
             if (auto *ch = dynamic_cast<ChatHandler *>(handler)) {
-                ch->setAIController(aiController_.get());
-                ch->setPromptManager(promptManager_.get());
+                ch->setApiClient(hermesApi_);
             }
             httpServer_->registerHandler(handler);
             std::cout << "Registered handler: " << handler->route() << std::endl;

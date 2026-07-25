@@ -15,6 +15,10 @@ target_sources(kathub-handlers PRIVATE
     VaultFileHandler.cpp
     VaultSessionsHandler.h
     VaultSessionsHandler.cpp
+    HermesApiClient.h
+    HermesApiClient.cpp
+    HermesSessionsHandler.h
+    HermesSessionsHandler.cpp
 )
 
 target_include_directories(kathub-handlers PUBLIC
