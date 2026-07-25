@@ -20,7 +20,10 @@ const DEFAULT_SESSION_ID = 'telegram-default'
 function loadSessions(): ChatSession[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
   } catch { /* ignore */ }
   return []
 }
@@ -28,7 +31,7 @@ function loadSessions(): ChatSession[] {
 function saveSessions(sessions: ChatSession[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
-  } catch { /* quota exceeded — silently ignore */ }
+  } catch { /* quota exceeded */ }
 }
 
 let messageCounter = 0
@@ -37,11 +40,12 @@ export const useChatStore = defineStore('chat', () => {
   const sessions = ref<ChatSession[]>(loadSessions())
   const activeSessionId = ref<string | null>(null)
   const panelOpen = ref(false)
-  const sessionsVisible = ref(true)  // toggle for sessions list
+  const sessionsVisible = ref(true)
   const sending = ref(false)
+  const messages = ref<ChatMessage[]>([])
 
-  // Ensure default Telegram session exists
-  function ensureDefaultSession() {
+  // Init: ensure at least the default session exists
+  function initSessions() {
     if (sessions.value.length === 0) {
       sessions.value.push({
         id: DEFAULT_SESSION_ID,
@@ -50,32 +54,36 @@ export const useChatStore = defineStore('chat', () => {
       })
       saveSessions(sessions.value)
     }
-    // Open default if nothing active
-    if (!activeSessionId.value) {
-      activeSessionId.value = DEFAULT_SESSION_ID
+    // Pick active: last-used or first available
+    const lastUsed = localStorage.getItem('kathub-active-session')
+    const found = lastUsed
+      ? sessions.value.find(s => s.id === lastUsed)
+      : null
+    if (found) {
+      activeSessionId.value = found.id
+    } else {
+      activeSessionId.value = sessions.value[0]?.id || null
     }
+    loadActiveMessages()
   }
-  ensureDefaultSession()
-
-  // Current session messages
-  const messages = ref<ChatMessage[]>([])
 
   function loadActiveMessages() {
     const s = sessions.value.find(s => s.id === activeSessionId.value)
     messages.value = s ? [...s.messages] : []
   }
-  loadActiveMessages()
 
   function persistCurrentSession() {
     const s = sessions.value.find(s => s.id === activeSessionId.value)
     if (s) {
       s.messages = [...messages.value]
-      // Update title from first user message
       const firstUser = s.messages.find(m => m.role === 'user')
       if (firstUser && s.title === 'New chat') {
         s.title = firstUser.content.slice(0, 30)
       }
       saveSessions(sessions.value)
+      if (activeSessionId.value) {
+        localStorage.setItem('kathub-active-session', activeSessionId.value)
+      }
     }
   }
 
@@ -102,7 +110,6 @@ export const useChatStore = defineStore('chat', () => {
         body: JSON.stringify({ message: text })
       })
       const data = await resp.json()
-
       messages.value.push({
         id: String(++messageCounter),
         role: 'assistant',
@@ -131,12 +138,14 @@ export const useChatStore = defineStore('chat', () => {
     activeSessionId.value = id
     messages.value = []
     panelOpen.value = true
+    localStorage.setItem('kathub-active-session', id)
   }
 
   function openSession(sessionId: string) {
     activeSessionId.value = sessionId
     loadActiveMessages()
     panelOpen.value = true
+    localStorage.setItem('kathub-active-session', sessionId)
   }
 
   function deleteSession(sessionId: string) {
@@ -145,6 +154,7 @@ export const useChatStore = defineStore('chat', () => {
     if (activeSessionId.value === sessionId) {
       activeSessionId.value = sessions.value[0]?.id || null
       loadActiveMessages()
+      localStorage.setItem('kathub-active-session', activeSessionId.value || '')
     }
   }
 
@@ -156,11 +166,12 @@ export const useChatStore = defineStore('chat', () => {
     sessionsVisible.value = !sessionsVisible.value
   }
 
+  // Initialize
+  initSessions()
+
   return {
-    messages, sessions, activeSessionId, panelOpen, sessionsVisible,
-    sending,
+    messages, sessions, activeSessionId, panelOpen, sessionsVisible, sending,
     sendMessage, newSession, openSession, deleteSession,
     closePanel, toggleSessions,
-    loadActiveMessages, persistCurrentSession,
   }
 })

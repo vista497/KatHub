@@ -13,10 +13,26 @@ const router = createRouter({
       name: 'mobile',
       component: () => import('../views/MobileView.vue'),
     },
+    // Settings sub-routes — all render same DesktopView for now
     {
-      path: '/settings',
-      name: 'settings',
+      path: '/settings/plugins',
+      name: 'settings-plugins',
       component: () => import('../views/DesktopView.vue'),
+    },
+    {
+      path: '/settings/backends',
+      name: 'settings-backends',
+      component: () => import('../views/DesktopView.vue'),
+    },
+    {
+      path: '/settings/theme',
+      name: 'settings-theme',
+      component: () => import('../views/DesktopView.vue'),
+    },
+    // Catch-all redirect
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: '/',
     },
   ],
 })

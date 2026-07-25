@@ -9,7 +9,7 @@ const graph = useGraphStore()
 
 let simulation: d3.Simulation<any, any> | null = null
 let currentZoom = 1
-const LABEL_ZOOM_THRESHOLD = 1.5
+const LABEL_ZOOM_THRESHOLD = 2.0
 
 let dragged = false
 
@@ -110,7 +110,7 @@ function initGraph() {
   // Labels
   const labels = node.append('text')
     .text((d: any) => d.label)
-    .attr('font-size', '9px')
+    .attr('font-size', '6px')
     .attr('fill', '#ccccee')
     .attr('dx', (d: any) => d.type === 'folder' ? 10 : 6)
     .attr('dy', 3)
