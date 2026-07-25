@@ -9,6 +9,7 @@
 #include "StaticFileHandler.h"
 #include "StatusHandler.h"
 #include "HandWindow.h"
+#include "VaultGraphHandler.h"
 #include "WsServer.h"
 #include "WsStatusHandler.h"
 #include "ChatHandler.h"
@@ -278,6 +279,15 @@ void KatHubApp::init()
             QStringLiteral("You are a helpful assistant."));
 
         // Register built-in handlers registered via REGISTER_HANDLER macro.
+        // Directly instantiate VaultGraphHandler (no QObject — REGISTER_HANDLER
+        // may not force-link under MSVC).
+        {
+            auto *vh = new VaultGraphHandler();
+            vh->setVaultPath("C:/Users/User/n8n_memory/Memory/Katty_ai");
+            httpServer_->registerHandler(vh);
+            std::cout << "Registered handler: " << vh->route() << std::endl;
+        }
+
         const auto &staticHandlers = StaticHandlerRegistry::instance().handlers();
         for (auto *handler : staticHandlers) {
             // If the handler is a StatusHandler, give it the SignalHub.
@@ -345,6 +355,14 @@ void KatHubApp::init()
         httpServer_->setSignalHub(signalHub_.get());
 
         // Register built-in handlers (StatusHandler, StaticFileHandler, etc.).
+        // Directly instantiate VaultGraphHandler (no QObject — REGISTER_HANDLER
+        // may not force-link under MSVC).
+        {
+            auto *vh = new VaultGraphHandler();
+            vh->setVaultPath("C:/Users/User/n8n_memory/Memory/Katty_ai");
+            httpServer_->registerHandler(vh);
+        }
+
         const auto &staticHandlers = StaticHandlerRegistry::instance().handlers();
         for (auto *handler : staticHandlers) {
             if (auto *sh = dynamic_cast<StatusHandler *>(handler)) {

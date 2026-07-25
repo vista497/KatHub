@@ -1,0 +1,22 @@
+/* KatHub — Light Theme */
+
+[data-theme="light"] {
+  --color-bg-primary: #f5f5fa;
+  --color-bg-secondary: #eaeaef;
+  --color-bg-tertiary: #d5d5e0;
+  --color-surface: rgba(0, 0, 0, 0.03);
+  --color-surface-hover: rgba(0, 0, 0, 0.05);
+  --color-border: rgba(0, 0, 0, 0.08);
+
+  --color-text-primary: #1a1a2e;
+  --color-text-secondary: #555577;
+  --color-text-muted: #8888aa;
+
+  --color-chat-bg: #eeeeff;
+  --color-chat-bubble-user: #e0e0f5;
+  --color-chat-bubble-assistant: #f0f0fa;
+  --color-chat-strip: rgba(124, 92, 255, 0.1);
+  --color-chat-strip-hover: rgba(124, 92, 255, 0.25);
+
+  --color-link: rgba(124, 92, 255, 0.1);
+}

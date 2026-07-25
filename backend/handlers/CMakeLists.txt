@@ -9,6 +9,8 @@ target_sources(kathub-handlers PRIVATE
     PluginListHandler.cpp
     ChatHandler.h
     ChatHandler.cpp
+    VaultGraphHandler.h
+    VaultGraphHandler.cpp
 )
 
 target_include_directories(kathub-handlers PUBLIC

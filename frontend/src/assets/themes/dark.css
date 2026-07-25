@@ -1,0 +1,6 @@
+/* KatHub — Dark Theme (default, no overrides needed) */
+/* File exists for completeness; base.css already defines dark defaults */
+
+[data-theme="dark"] {
+  /* All values inherited from base.css :root */
+}
