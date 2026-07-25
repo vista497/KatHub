@@ -2,60 +2,61 @@
 import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
 import { useChatStore } from '../../stores/chatStore'
-import { computed, ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 
 const chat = useChatStore()
-const messagesContainer = ref<HTMLDivElement>()
+const messagesEnd = ref<HTMLDivElement>()
 
-const session = computed(() => chat.currentSession)
+// For mobile: show session list or messages
+const showSessions = ref(true)
 
-function scrollToBottom() {
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
+function selectAndOpen(sessionId: string) {
+  chat.openSession(sessionId)
+  showSessions.value = false
 }
 
-watch(() => session.value?.messages.length, async () => {
+function handleSend(text: string) {
+  chat.sendMessage(text)
+}
+
+watch(() => chat.messages.length, async () => {
   await nextTick()
-  scrollToBottom()
+  messagesEnd.value?.scrollIntoView({ behavior: 'smooth' })
 })
-
-// On mobile, use first session by default
-if (!chat.activeSession) {
-  chat.openSession('katya')
-}
 </script>
 
 <template>
   <div class="chat-view">
-    <!-- Agent switcher -->
-    <div class="agent-tabs">
-      <button
+    <!-- Session list -->
+    <div v-if="showSessions" class="sessions-list">
+      <h3>AI Sessions</h3>
+      <div v-if="chat.sessions.length === 0 && !chat.sessionsLoading" class="empty">
+        No sessions found. Load from Obsidian vault.
+      </div>
+      <div
         v-for="s in chat.sessions"
         :key="s.id"
-        class="agent-tab"
-        :class="{ active: chat.activeSession === s.id }"
-        @click="chat.openSession(s.id)"
+        class="session-card"
+        @click="selectAndOpen(s.id)"
       >
-        {{ s.agent }}
-        <span v-if="s.unread" class="unread-dot"></span>
-      </button>
-    </div>
-
-    <!-- Messages -->
-    <div class="chat-messages" ref="messagesContainer">
-      <ChatMessage
-        v-for="msg in session?.messages"
-        :key="msg.id"
-        :message="msg"
-      />
-      <div v-if="!session?.messages.length" class="empty-state">
-        No messages yet
+        <div class="s-title">{{ s.title }}</div>
+        <div class="s-meta">{{ s.date }} · {{ s.messageCount }} msgs</div>
       </div>
+      <button class="refresh-btn" @click="chat.fetchSessions()">↻ Load sessions</button>
     </div>
 
-    <!-- Input -->
-    <ChatInput @send="chat.sendMessage" />
+    <!-- Chat view -->
+    <div v-else class="chat-conversation">
+      <div class="chat-nav">
+        <button @click="showSessions = true">← Back</button>
+        <span>{{ chat.activeSessionId }}</span>
+      </div>
+      <div class="chat-messages">
+        <ChatMessage v-for="m in chat.messages" :key="m.id" :message="m" />
+        <div ref="messagesEnd"></div>
+      </div>
+      <ChatInput @send="handleSend" />
+    </div>
   </div>
 </template>
 
@@ -64,60 +65,92 @@ if (!chat.activeSession) {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-chat-bg);
+  background: var(--color-bg-primary);
 }
 
-.agent-tabs {
-  display: flex;
-  gap: var(--space-1);
-  padding: var(--space-2);
-  background: var(--color-bg-secondary);
-  border-bottom: 1px solid var(--color-border);
-  overflow-x: auto;
+.sessions-list {
+  padding: 16px;
+  overflow-y: auto;
 }
 
-.agent-tab {
-  padding: var(--space-1) var(--space-3);
-  background: none;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
+.sessions-list h3 {
+  color: #ccccee;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.session-card {
+  padding: 12px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  background: rgba(124,92,255,0.06);
   cursor: pointer;
-  white-space: nowrap;
-  transition: all var(--transition-fast);
-  font-family: var(--font-sans);
-  position: relative;
+  transition: background 0.15s;
 }
 
-.agent-tab.active {
-  background: var(--color-accent);
-  color: white;
-  border-color: var(--color-accent);
+.session-card:hover {
+  background: rgba(124,92,255,0.15);
 }
 
-.unread-dot {
-  position: absolute;
-  top: 2px;
-  right: 6px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-accent-secondary);
+.s-title {
+  font-size: 13px;
+  color: #ccccee;
+}
+
+.s-meta {
+  font-size: 11px;
+  color: #666888;
+  margin-top: 2px;
+}
+
+.empty {
+  color: #666888;
+  font-size: 13px;
+  padding: 20px 0;
+}
+
+.refresh-btn {
+  margin-top: 12px;
+  width: 100%;
+  padding: 8px;
+  background: rgba(124,92,255,0.12);
+  border: none;
+  border-radius: 6px;
+  color: #aaaacc;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.chat-conversation {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.chat-nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(124,92,255,0.1);
+}
+
+.chat-nav button {
+  background: none;
+  border: none;
+  color: #8888aa;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.chat-nav span {
+  font-size: 12px;
+  color: #aaaacc;
 }
 
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.empty-state {
-  margin: auto;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  padding: 8px;
 }
 </style>

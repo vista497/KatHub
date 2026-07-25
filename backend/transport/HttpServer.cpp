@@ -88,11 +88,23 @@ void HttpServer::registerHandler(IHttpHandler *handler)
         const char *route = handler->route();
         auto method = handler->method();
 
-        // Capture handler pointer; the lambda calls IHttpHandler::handle
+        // Capture handler pointer; the lambda calls IHttpHandler::handleWithContext
         auto httplibHandler = [this, handler](const httplib::Request &req,
                                                httplib::Response &res) {
-            // Pass request body and response pointer
-            handler->handle(req.body.c_str(), &res);
+            // Extract query string from target (path?query)
+            const char* queryStr = nullptr;
+            std::string qs;
+            size_t qpos = req.target.find('?');
+            if (qpos != std::string::npos) {
+                qs = req.target.substr(qpos + 1);
+                queryStr = qs.c_str();
+            }
+
+            handler->handleWithContext(
+                req.body.c_str(),
+                req.path.c_str(),
+                queryStr,
+                &res);
 
             // Publish event to SignalHub after each request
             if (signalHub_) {
@@ -150,7 +162,16 @@ void HttpServer::installHandlers()
 
         auto httplibHandler = [this, handler](const httplib::Request &req,
                                                httplib::Response &res) {
-            handler->handle(req.body.c_str(), &res);
+            // Extract query string
+            const char* queryStr = nullptr;
+            std::string qs;
+            size_t qpos = req.target.find('?');
+            if (qpos != std::string::npos) {
+                qs = req.target.substr(qpos + 1);
+                queryStr = qs.c_str();
+            }
+            handler->handleWithContext(
+                req.body.c_str(), req.path.c_str(), queryStr, &res);
 
             // Publish event to SignalHub after each request
             if (signalHub_) {

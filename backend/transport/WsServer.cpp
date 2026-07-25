@@ -9,6 +9,7 @@
 #include <QJsonObject>
 #include <QTimer>
 #include <QDebug>
+#include <iostream>
 
 // ---------------------------------------------------------------------------
 //  Construction / Destruction
@@ -60,7 +61,7 @@ void WsServer::start(quint16 port)
     if (m_server->listen(QHostAddress::Any, port)) {
         // In case port 0 was passed, read back the OS-assigned port.
         m_port = m_server->serverPort();
-        qDebug() << "WsServer listening on port" << m_port;
+        std::cout << "WsServer listening on port " << m_port << std::endl;
         m_pingTimer->start();
     } else {
         qWarning() << "WsServer failed to listen on port" << port
@@ -131,7 +132,7 @@ void WsServer::onNewConnection()
         connect(sock, &QWebSocket::disconnected,
                 this, &WsServer::onSocketDisconnected);
 
-        qDebug() << "WsServer: new client connected (total:" << m_clients.size() << ")";
+        std::cout << "WsServer: new client connected (total:" << m_clients.size() << ")" << std::endl;
     }
 }
 
@@ -173,7 +174,7 @@ void WsServer::onTextMessageReceived(const QString &message)
             int handle = m_hub->subscribe(topic, [](const QJsonObject &) {});
             m_subscriptions.insert(topic, handle);
 
-            qDebug() << "WsServer: subscribed to topic" << topic;
+            std::cout << "WsServer: subscribed to topic" << topic.toStdString() << std::endl;
         }
 
         // Ack back to the client.
@@ -192,10 +193,10 @@ void WsServer::onTextMessageReceived(const QString &message)
         QJsonObject data = obj.value(QStringLiteral("data")).toObject();
         m_hub->publish(topic, data);
 
-        qDebug() << "WsServer: client published to topic" << topic;
+        std::cout << "WsServer: client published to topic" << topic.toStdString() << std::endl;
 
     } else {
-        qDebug() << "WsServer: unknown message type:" << type;
+        std::cout << "WsServer: unknown message type:" << type.toStdString() << std::endl;
     }
 }
 
@@ -208,7 +209,7 @@ void WsServer::onSocketDisconnected()
     m_clients.removeAll(sock);
     sock->deleteLater();
 
-    qDebug() << "WsServer: client disconnected (total:" << m_clients.size() << ")";
+    std::cout << "WsServer: client disconnected (total:" << m_clients.size() << ")" << std::endl;
 }
 
 void WsServer::onSignalPublished(const QString &topic, const QJsonObject &data)

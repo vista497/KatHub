@@ -11,6 +11,10 @@ target_sources(kathub-handlers PRIVATE
     ChatHandler.cpp
     VaultGraphHandler.h
     VaultGraphHandler.cpp
+    VaultFileHandler.h
+    VaultFileHandler.cpp
+    VaultSessionsHandler.h
+    VaultSessionsHandler.cpp
 )
 
 target_include_directories(kathub-handlers PUBLIC

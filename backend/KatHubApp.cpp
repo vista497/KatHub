@@ -10,6 +10,8 @@
 #include "StatusHandler.h"
 #include "HandWindow.h"
 #include "VaultGraphHandler.h"
+#include "VaultFileHandler.h"
+#include "VaultSessionsHandler.h"
 #include "WsServer.h"
 #include "WsStatusHandler.h"
 #include "ChatHandler.h"
@@ -287,6 +289,18 @@ void KatHubApp::init()
             httpServer_->registerHandler(vh);
             std::cout << "Registered handler: " << vh->route() << std::endl;
         }
+        {
+            auto *fh = new VaultFileHandler();
+            fh->setVaultPath("C:/Users/User/n8n_memory/Memory/Katty_ai");
+            httpServer_->registerHandler(fh);
+            std::cout << "Registered handler: " << fh->route() << std::endl;
+        }
+        {
+            auto *sh2 = new VaultSessionsHandler();
+            sh2->setVaultPath("C:/Users/User/n8n_memory/Memory/Katty_ai");
+            httpServer_->registerHandler(sh2);
+            std::cout << "Registered handler: " << sh2->route() << std::endl;
+        }
 
         const auto &staticHandlers = StaticHandlerRegistry::instance().handlers();
         for (auto *handler : staticHandlers) {
@@ -361,6 +375,16 @@ void KatHubApp::init()
             auto *vh = new VaultGraphHandler();
             vh->setVaultPath("C:/Users/User/n8n_memory/Memory/Katty_ai");
             httpServer_->registerHandler(vh);
+        }
+        {
+            auto *fh = new VaultFileHandler();
+            fh->setVaultPath("C:/Users/User/n8n_memory/Memory/Katty_ai");
+            httpServer_->registerHandler(fh);
+        }
+        {
+            auto *sh2 = new VaultSessionsHandler();
+            sh2->setVaultPath("C:/Users/User/n8n_memory/Memory/Katty_ai");
+            httpServer_->registerHandler(sh2);
         }
 
         const auto &staticHandlers = StaticHandlerRegistry::instance().handlers();

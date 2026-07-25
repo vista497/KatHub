@@ -7,98 +7,96 @@ const chat = useChatStore()
 
 <template>
   <div class="chat-overlay">
-    <!-- Chat strips -->
-    <div class="chat-strips">
-      <div
-        v-for="session in chat.sessions"
-        :key="session.id"
-        class="chat-strip"
-        :class="{ active: chat.activeSession === session.id }"
-        @click="chat.openSession(session.id)"
-      >
-        <span class="strip-label">{{ session.agent[0] }}</span>
-        <span v-if="session.unread" class="unread-badge">{{ session.unread }}</span>
-      </div>
+    <!-- Collapsed strips -->
+    <div
+      v-for="s in chat.sessions.slice(0, 8)"
+      :key="s.id"
+      class="chat-strip"
+      :class="{ active: chat.panelOpen && chat.activeChat === s.id }"
+      @click="chat.toggleChat(s.id)"
+    >
+      <span class="strip-label">{{ s.title.slice(0, 2) }}</span>
     </div>
 
-    <!-- Chat panel (slide-in) -->
+    <!-- Expanded panel -->
     <Transition name="slide">
-      <ChatPanel v-if="chat.panelOpen" @close="chat.closePanel" />
+      <div v-if="chat.panelOpen && chat.activeChat" class="chat-panel-wrapper">
+        <ChatPanel />
+        <button class="close-btn" @click="chat.panelOpen = false">✕</button>
+      </div>
     </Transition>
   </div>
 </template>
 
 <style scoped>
 .chat-overlay {
-  display: flex;
-  height: 100vh;
-}
-
-.chat-strips {
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-2);
-  background: var(--color-bg-secondary);
-  border-left: 1px solid var(--color-border);
+  align-items: flex-end;
+  gap: 2px;
+  padding: 4px 0;
 }
 
 .chat-strip {
-  width: 28px;
-  height: 60px;
+  width: 8px;
+  height: 32px;
+  background: rgba(124,92,255,0.25);
+  border-radius: 4px 0 0 4px;
+  cursor: pointer;
+  transition: all 0.15s;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  background: var(--color-chat-strip);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.chat-strip:hover {
-  background: var(--color-chat-strip-hover);
-  width: 34px;
-}
-
-.chat-strip.active {
-  background: var(--color-accent);
+.chat-strip:hover, .chat-strip.active {
+  width: 28px;
+  background: rgba(124,92,255,0.5);
 }
 
 .strip-label {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-primary);
-  font-weight: 600;
+  font-size: 8px;
+  color: #ccce;
+  writing-mode: vertical-lr;
+  white-space: nowrap;
 }
 
-.unread-badge {
+.chat-panel-wrapper {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  background: var(--color-accent-secondary);
-  color: var(--color-bg-primary);
-  border-radius: var(--radius-full);
-  font-size: 10px;
-  font-weight: 700;
+  right: 12px;
+  top: 0;
+  bottom: 0;
+  width: 380px;
+  z-index: 100;
+  background: var(--color-bg-secondary);
+  border-left: 1px solid var(--color-border);
   display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
+  flex-direction: column;
 }
 
-/* Slide transition */
-.slide-enter-active,
-.slide-leave-active {
-  transition: all var(--transition-slow);
+.close-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: #888a;
+  cursor: pointer;
+  font-size: 14px;
+  z-index: 101;
 }
 
-.slide-enter-from,
-.slide-leave-to {
+.close-btn:hover { color: #fff; }
+
+.slide-enter-active, .slide-leave-active {
+  transition: transform 0.2s ease;
+}
+.slide-enter-from, .slide-leave-to {
   transform: translateX(100%);
-  opacity: 0;
 }
 </style>

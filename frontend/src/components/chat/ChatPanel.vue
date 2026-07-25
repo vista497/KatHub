@@ -4,102 +4,77 @@ import { useChatStore } from '../../stores/chatStore'
 import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
 
-const emit = defineEmits<{ close: [] }>()
 const chat = useChatStore()
-const messagesContainer = ref<HTMLDivElement>()
+const messagesEnd = ref<HTMLDivElement>()
 
-const session = computed(() => chat.currentSession)
+const sessionTitle = computed(() => {
+  const s = chat.sessions.find(s => s.id === chat.activeSessionId)
+  return s?.title || chat.activeSessionId || 'Chat'
+})
 
-function scrollToBottom() {
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
+function handleSend(text: string) {
+  chat.sendMessage(text)
 }
 
-watch(() => session.value?.messages.length, async () => {
+watch(() => chat.messages.length, async () => {
   await nextTick()
-  scrollToBottom()
+  messagesEnd.value?.scrollIntoView({ behavior: 'smooth' })
 })
 </script>
 
 <template>
   <div class="chat-panel">
-    <!-- Header -->
     <div class="chat-header">
-      <span class="agent-name">{{ session?.agent || 'Chat' }}</span>
-      <button class="close-btn" @click="emit('close')">✕</button>
+      <span class="chat-title">{{ sessionTitle }}</span>
     </div>
 
-    <!-- Messages -->
-    <div class="chat-messages" ref="messagesContainer">
+    <div class="chat-messages">
+      <div v-if="chat.messagesLoading" class="loading">Loading...</div>
       <ChatMessage
-        v-for="msg in session?.messages"
-        :key="msg.id"
-        :message="msg"
+        v-for="m in chat.messages"
+        :key="m.id"
+        :message="m"
       />
-      <div v-if="!session?.messages.length" class="empty-state">
-        No messages yet
-      </div>
+      <div ref="messagesEnd"></div>
     </div>
 
-    <!-- Input -->
-    <ChatInput @send="chat.sendMessage" />
+    <ChatInput @send="handleSend" />
   </div>
 </template>
 
 <style scoped>
 .chat-panel {
-  width: var(--chat-panel-width);
-  height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--color-chat-bg);
-  border-left: 1px solid var(--color-border);
+  height: 100%;
+  background: #111122;
 }
 
 .chat-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
-  min-height: 48px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(124,92,255,0.15);
+  flex-shrink: 0;
 }
 
-.agent-name {
+.chat-title {
+  font-size: 13px;
+  color: #aaaacc;
   font-weight: 600;
-  font-size: var(--font-size-base);
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  font-size: var(--font-size-lg);
-  padding: var(--space-1);
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
-}
-
-.close-btn:hover {
-  color: var(--color-text-primary);
-  background: var(--color-surface-hover);
 }
 
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-4);
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 4px;
 }
 
-.empty-state {
-  margin: auto;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+.loading {
+  color: #666888;
+  font-size: 12px;
+  text-align: center;
+  padding: 20px;
 }
 </style>

@@ -227,6 +227,29 @@ namespace {
         HANDLE hProcess = GetCurrentProcess();
         HANDLE hThread  = GetCurrentThread();
 
+        // Skip non-fatal exceptions — debug events, thread naming, etc.
+        DWORD code = exInfo->ExceptionRecord->ExceptionCode;
+        switch (code) {
+        case EXCEPTION_ACCESS_VIOLATION:
+        case EXCEPTION_STACK_OVERFLOW:
+        case EXCEPTION_ILLEGAL_INSTRUCTION:
+        case EXCEPTION_IN_PAGE_ERROR:
+        case EXCEPTION_INVALID_DISPOSITION:
+        case EXCEPTION_NONCONTINUABLE_EXCEPTION:
+        case EXCEPTION_PRIV_INSTRUCTION:
+        case EXCEPTION_INT_DIVIDE_BY_ZERO:
+        case EXCEPTION_INT_OVERFLOW:
+        case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+        case EXCEPTION_DATATYPE_MISALIGNMENT:
+        case EXCEPTION_FLT_DIVIDE_BY_ZERO:
+        case EXCEPTION_FLT_OVERFLOW:
+        case EXCEPTION_FLT_UNDERFLOW:
+        case EXCEPTION_FLT_INVALID_OPERATION:
+            break;  // Fatal — log and die
+        default:
+            return EXCEPTION_CONTINUE_SEARCH;  // Not our problem
+        }
+
         // Build panic info
         auto now = std::chrono::system_clock::now();
         std::time_t t = std::chrono::system_clock::to_time_t(now);

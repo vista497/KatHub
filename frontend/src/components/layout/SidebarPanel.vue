@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useSidebarStore } from '../../stores/sidebarStore'
 import SidebarSection from './SidebarSection.vue'
-import VaultTree from './VaultTree.vue'
 import AiSessions from './AiSessions.vue'
 
 const sidebar = useSidebarStore()
@@ -17,11 +16,7 @@ const sidebar = useSidebarStore()
     </div>
 
     <div class="sidebar-content" v-if="!sidebar.collapsed">
-      <SidebarSection title="Vault" name="vault">
-        <VaultTree />
-      </SidebarSection>
-
-      <SidebarSection title="AI" name="ai">
+      <SidebarSection title="AI Sessions" name="ai">
         <AiSessions />
       </SidebarSection>
 

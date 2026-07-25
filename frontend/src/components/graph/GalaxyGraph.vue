@@ -8,6 +8,11 @@ const svgRef = ref<SVGSVGElement>()
 const graph = useGraphStore()
 
 let simulation: d3.Simulation<any, any> | null = null
+let currentZoom = 1
+const LABEL_ZOOM_THRESHOLD = 1.5  // Show labels when zoom >= 1.5x
+
+// Track drag state to distinguish click vs drag
+let dragged = false
 
 function initGraph() {
   if (!svgRef.value || !container.value || !graph.nodes.length) return
@@ -21,8 +26,9 @@ function initGraph() {
   const svg = d3.select(svgRef.value)
     .attr('width', width)
     .attr('height', height)
+    .attr('will-change', 'transform')  // GPU hint for WebEngine
 
-  // Background stars
+  // Background
   svg.append('rect')
     .attr('width', width)
     .attr('height', height)
@@ -34,19 +40,28 @@ function initGraph() {
   const zoom = d3.zoom<SVGSVGElement, unknown>()
     .scaleExtent([0.1, 5])
     .on('zoom', (event) => {
+      currentZoom = event.transform.k
       g.attr('transform', event.transform)
+      updateLabelVisibility()
     })
 
   svg.call(zoom)
+
+  // Defs for glow filter
+  const defs = svg.append('defs')
+  const filter = defs.append('filter').attr('id', 'glow')
+  filter.append('feGaussianBlur').attr('stdDeviation', '2.5').attr('result', 'blur')
+  const merge = filter.append('feMerge')
+  merge.append('feMergeNode').attr('in', 'blur')
+  merge.append('feMergeNode').attr('in', 'SourceGraphic')
 
   // Links
   const link = g.append('g')
     .selectAll('line')
     .data(graph.links)
     .join('line')
-    .attr('stroke', 'var(--color-link, rgba(124,92,255,0.15))')
-    .attr('stroke-width', 0.5)
-    .attr('stroke-opacity', 0.4)
+    .attr('stroke', 'rgba(124,92,255,0.12)')
+    .attr('stroke-width', 0.4)
 
   // Nodes group
   const node = g.append('g')
@@ -54,6 +69,10 @@ function initGraph() {
     .data(graph.nodes)
     .join('g')
     .attr('cursor', 'pointer')
+    .attr('class', (d: any) => `node-${d.type}`)
+
+  // Click vs drag detection
+  node.on('pointerdown', () => { dragged = false })
 
   // Drag behavior
   const drag = d3.drag<any, any>()
@@ -63,6 +82,7 @@ function initGraph() {
       d.fy = d.y
     })
     .on('drag', (event, d) => {
+      dragged = true
       d.fx = event.x
       d.fy = event.y
     })
@@ -74,57 +94,60 @@ function initGraph() {
 
   node.call(drag)
 
-  // Glow circle (behind)
+  // Main circle with glow
   node.append('circle')
-    .attr('r', (d: any) => d.type === 'folder' ? 12 : 8)
+    .attr('r', (d: any) => d.type === 'folder' ? 7 : 4)
     .attr('fill', (d: any) => {
       switch (d.type) {
-        case 'folder': return 'var(--color-node-folder, #ff6b9d)'
-        case 'tag': return 'var(--color-node-tag, #5ce0ff)'
-        default: return 'var(--color-node-default, #7c5cff)'
+        case 'folder': return '#ff6b9d'
+        case 'tag': return '#5ce0ff'
+        default: return '#7c5cff'
       }
     })
-    .attr('opacity', 0.08)
-
-  // Main circle
-  node.append('circle')
-    .attr('r', (d: any) => d.type === 'folder' ? 6 : d.type === 'tag' ? 4 : 3)
-    .attr('fill', (d: any) => {
-      switch (d.type) {
-        case 'folder': return 'var(--color-node-folder, #ff6b9d)'
-        case 'tag': return 'var(--color-node-tag, #5ce0ff)'
-        default: return 'var(--color-node-default, #7c5cff)'
-      }
-    })
-    .attr('opacity', 0.85)
+    .attr('opacity', 0.9)
     .attr('stroke', (d: any) => d.id === graph.selectedNode ? '#ffffff' : 'transparent')
-    .attr('stroke-width', 2)
+    .attr('stroke-width', (d: any) => d.id === graph.selectedNode ? 2 : 0)
+    .attr('filter', (d: any) => d.id === graph.selectedNode ? 'url(#glow)' : null)
 
-  // Labels (only folders)
-  node.append('text')
+  // Labels — visibility controlled by zoom
+  const labels = node.append('text')
     .text((d: any) => d.label)
-    .attr('font-size', '8px')
-    .attr('fill', 'var(--color-text-secondary, #8888aa)')
-    .attr('dx', 8)
+    .attr('font-size', '9px')
+    .attr('fill', '#ccccee')
+    .attr('dx', (d: any) => d.type === 'folder' ? 10 : 6)
     .attr('dy', 3)
-    .attr('opacity', (d: any) => d.type === 'folder' ? 0.7 : 0)
+    .attr('opacity', 0)
+    .attr('pointer-events', 'none')
+    .style('text-shadow', '0 0 3px rgba(0,0,0,0.8)')
 
-  // Click
+  function updateLabelVisibility() {
+    const show = currentZoom >= LABEL_ZOOM_THRESHOLD
+    labels.attr('opacity', show ? 0.8 : 0)
+  }
+
+  // Click — open file editor (note) or select (folder)
   node.on('click', (_event: any, d: any) => {
+    if (dragged) return  // Ignore drag-induced clicks
+    if (d.type === 'note') {
+      graph.openFile(d.id)
+    }
     graph.selectNode(d.id === graph.selectedNode ? null : d.id)
   })
 
   // Click on background to deselect
-  svg.on('click', () => {
-    graph.clearSelection()
+  svg.on('click', (event: any) => {
+    if (event.target === svgRef.value) {
+      graph.clearSelection()
+    }
   })
 
-  // Simulation
+  // Simulation — strong centripetal force to keep orphans close
   simulation = d3.forceSimulation(graph.nodes)
-    .force('link', d3.forceLink(graph.links).id((d: any) => d.id).distance(60))
-    .force('charge', d3.forceManyBody().strength(-120))
-    .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collision', d3.forceCollide().radius(12))
+    .force('link', d3.forceLink(graph.links).id((d: any) => d.id).distance(40).strength(0.3))
+    .force('charge', d3.forceManyBody().strength(-80))
+    .force('center', d3.forceCenter(width / 2, height / 2).strength(0.15))  // Stronger center pull!
+    .force('collision', d3.forceCollide().radius(10))
+    .alphaDecay(0.02)  // Slower cool-down = more settling time
     .on('tick', () => {
       link
         .attr('x1', (d: any) => d.source.x)
@@ -133,11 +156,22 @@ function initGraph() {
         .attr('y2', (d: any) => d.target.y)
       node.attr('transform', (d: any) => `translate(${d.x},${d.y})`)
     })
+
 }
 
 function onResize() {
   initGraph()
 }
+
+// Emit for parent: file editor panel
+const emit = defineEmits<{
+  (e: 'open-file', path: string): void
+}>()
+
+// Watch for file editor from parent
+watch(() => graph.editingFile, (val) => {
+  if (val) emit('open-file', val)
+})
 
 onMounted(() => {
   window.addEventListener('resize', onResize)
@@ -156,7 +190,6 @@ watch(() => graph.nodes.length, async () => {
   }
 })
 
-// Redraw on selection change
 watch(() => graph.selectedNode, () => {
   if (graph.nodes.length) initGraph()
 })
@@ -181,9 +214,14 @@ watch(() => graph.selectedNode, () => {
     <!-- SVG -->
     <svg ref="svgRef" class="graph-svg"></svg>
 
-    <!-- Selected node info -->
+    <!-- Selected node info bar -->
     <div v-if="graph.selectedNode" class="node-info">
       {{ graph.selectedNode }}
+    </div>
+
+    <!-- Zoom hint -->
+    <div class="zoom-hint" :class="{ hidden: currentZoom >= LABEL_ZOOM_THRESHOLD }">
+      🔍 Zoom in for labels
     </div>
   </div>
 </template>
@@ -194,6 +232,7 @@ watch(() => graph.selectedNode, () => {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  contain: strict;  /* Paint containment for WebEngine perf */
 }
 
 .starfield {
@@ -274,5 +313,23 @@ watch(() => graph.selectedNode, () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.zoom-hint {
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--space-1) var(--space-3);
+  background: rgba(0,0,0,0.6);
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.zoom-hint.hidden {
+  opacity: 0;
 }
 </style>

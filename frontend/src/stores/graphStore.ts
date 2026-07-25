@@ -25,6 +25,12 @@ export const useGraphStore = defineStore('graph', () => {
   const selectedNode = ref<string | null>(null)
   const error = ref<string | null>(null)
 
+  // File editor state
+  const editingFile = ref<string | null>(null)   // node id (relative path)
+  const editingTitle = ref<string>('')
+  const fileContent = ref<string>('')
+  const fileLoading = ref(false)
+
   async function fetchGraph() {
     loading.value = true
     error.value = null
@@ -48,7 +54,34 @@ export const useGraphStore = defineStore('graph', () => {
 
   function clearSelection() {
     selectedNode.value = null
+    editingFile.value = null
+    fileContent.value = ''
   }
 
-  return { nodes, links, loading, selectedNode, error, fetchGraph, selectNode, clearSelection }
+  async function openFile(nodeId: string) {
+    editingFile.value = nodeId
+    editingTitle.value = nodeId.split(/[\\/]/).pop()?.replace('.md', '') || nodeId
+    fileLoading.value = true
+    try {
+      const res = await fetch(`/api/vault/file?path=${encodeURIComponent(nodeId)}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      fileContent.value = data.content || ''
+    } catch (e: any) {
+      fileContent.value = `Error: ${e.message}`
+    } finally {
+      fileLoading.value = false
+    }
+  }
+
+  function closeFile() {
+    editingFile.value = null
+    fileContent.value = ''
+  }
+
+  return {
+    nodes, links, loading, selectedNode, error,
+    editingFile, editingTitle, fileContent, fileLoading,
+    fetchGraph, selectNode, clearSelection, openFile, closeFile,
+  }
 })
