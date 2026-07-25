@@ -7,7 +7,12 @@ class QCoreApplication;
 class PluginLoader;
 class PluginRegistry;
 class HttpServer;
+class WsServer;
 struct HostApi;
+
+namespace KatHub {
+class SignalHub;
+}
 
 // Composition root for the KatHub application.
 // Owns all major subsystems and wires them together.
@@ -34,7 +39,8 @@ public:
 
     // Initialise all subsystems according to the mode.
     // In Server mode: creates PluginLoader, PluginRegistry, HttpServer,
-    //   registers built-in + plugin handlers, starts listening.
+    //   SignalHub, WsServer, registers built-in + plugin handlers,
+    //   starts listening.
     // In Hand mode: creates a WebViewWindow (stub — QWebEngineView placeholder).
     void init();
 
@@ -70,6 +76,8 @@ private:
     // Subsystems (Server mode).
     std::unique_ptr<PluginLoader> pluginLoader_;
     std::unique_ptr<HttpServer> httpServer_;
+    std::unique_ptr<KatHub::SignalHub> signalHub_;
+    std::unique_ptr<WsServer> wsServer_;
 
     // Subsystems (Hand mode) — TODO.
     // std::unique_ptr<WebViewWindow> webViewWindow_;

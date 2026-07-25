@@ -1,6 +1,7 @@
 #include "HttpServer.h"
 
 #include "IHttpHandler.h"
+#include "SignalHub.h"
 #include "httplib.h"
 
 // windows.h (pulled in by httplib.h) defines DELETE as a macro.
@@ -55,6 +56,11 @@ void HttpServer::start(int port)
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
+void HttpServer::setSignalHub(KatHub::SignalHub *hub)
+{
+    signalHub_ = hub;
+}
+
 void HttpServer::stop()
 {
     if (!running_.load())
@@ -83,10 +89,17 @@ void HttpServer::registerHandler(IHttpHandler *handler)
         auto method = handler->method();
 
         // Capture handler pointer; the lambda calls IHttpHandler::handle
-        auto httplibHandler = [handler](const httplib::Request &req,
-                                         httplib::Response &res) {
+        auto httplibHandler = [this, handler](const httplib::Request &req,
+                                               httplib::Response &res) {
             // Pass request body and response pointer
             handler->handle(req.body.c_str(), &res);
+
+            // Publish event to SignalHub after each request
+            if (signalHub_) {
+                QJsonObject event;
+                event[QStringLiteral("route")] = QString::fromLatin1(handler->route());
+                signalHub_->publish(QStringLiteral("http.request"), event);
+            }
         };
 
         switch (method) {
@@ -129,9 +142,16 @@ void HttpServer::installHandlers()
         const char *route = handler->route();
         auto method = handler->method();
 
-        auto httplibHandler = [handler](const httplib::Request &req,
-                                         httplib::Response &res) {
+        auto httplibHandler = [this, handler](const httplib::Request &req,
+                                               httplib::Response &res) {
             handler->handle(req.body.c_str(), &res);
+
+            // Publish event to SignalHub after each request
+            if (signalHub_) {
+                QJsonObject event;
+                event[QStringLiteral("route")] = QString::fromLatin1(handler->route());
+                signalHub_->publish(QStringLiteral("http.request"), event);
+            }
         };
 
         switch (method) {

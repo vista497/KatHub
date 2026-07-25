@@ -1,8 +1,9 @@
-find_package(Qt6 REQUIRED COMPONENTS Core)
+find_package(Qt6 REQUIRED COMPONENTS Core WebSockets Test Network)
 
 add_executable(kathub-tests
     test_plugin_lifecycle.cpp
     test_status_endpoint.cpp
+    test_websocket.cpp
 )
 
 # Include cpp-httplib header for the status endpoint test
@@ -20,9 +21,21 @@ target_compile_definitions(kathub-tests PRIVATE
 target_link_libraries(kathub-tests PRIVATE
     kathub-domain
     kathub-host
-    gtest_main
+    kathub-transport
+    kathub-handlers
+    kathub-core
+    gtest
     Qt6::Core
+    Qt6::WebSockets
+    Qt6::Network
+    Qt6::Test
 )
+
+# MSVC discards static lib objects with no referenced symbols.
+# REGISTER_HANDLER uses file-scope globals — force linker to keep them.
+if(MSVC)
+    target_link_options(kathub-tests PRIVATE "/WHOLEARCHIVE:kathub-handlers")
+endif()
 
 # cpp-httplib needs Winsock2 on Windows
 if(WIN32)

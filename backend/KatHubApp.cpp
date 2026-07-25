@@ -5,7 +5,10 @@
 #include "IHttpHandler.h"
 #include "PluginLoader.h"
 #include "PluginRegistry.h"
+#include "SignalHub.h"
 #include "StaticFileHandler.h"
+#include "StatusHandler.h"
+#include "WsServer.h"
 
 #include <QCoreApplication>
 #include <QString>
@@ -111,13 +114,27 @@ void KatHubApp::init()
     if (mode_ == Mode::Server) {
         std::cout << "KatHub starting in Server mode..." << std::endl;
 
-        pluginLoader_   = std::make_unique<PluginLoader>(PluginRegistry::instance());
+        // Create PluginLoader (loads dynamic plugins).
+        pluginLoader_ = std::make_unique<PluginLoader>(PluginRegistry::instance());
 
+        // Create the event bus.
+        signalHub_ = std::make_unique<KatHub::SignalHub>();
+
+        // Create the WebSocket server, connected to SignalHub.
+        wsServer_ = std::make_unique<WsServer>(signalHub_.get());
+        wsServer_->start(8081);
+
+        // Create the HTTP server and wire it to SignalHub.
         httpServer_ = std::make_unique<HttpServer>();
+        httpServer_->setSignalHub(signalHub_.get());
 
         // Register built-in handlers registered via REGISTER_HANDLER macro.
         const auto &staticHandlers = StaticHandlerRegistry::instance().handlers();
         for (auto *handler : staticHandlers) {
+            // If the handler is a StatusHandler, give it the SignalHub.
+            if (auto *sh = dynamic_cast<StatusHandler *>(handler)) {
+                sh->setSignalHub(signalHub_.get());
+            }
             httpServer_->registerHandler(handler);
             std::cout << "Registered handler: " << handler->route() << std::endl;
         }
@@ -130,7 +147,7 @@ void KatHubApp::init()
         }
 
         // Set up HttpServer with parsed port.
-        std::cout << "Listening on :" << port_ << std::endl;
+        std::cout << "Listening on :" << port_ << " (HTTP), :8081 (WebSocket)" << std::endl;
         httpServer_->start(port_);
 
     } else {
@@ -158,6 +175,10 @@ void KatHubApp::requestShutdown()
 {
     if (httpServer_) {
         httpServer_->stop();
+    }
+
+    if (wsServer_) {
+        wsServer_->stop();
     }
 
     // PluginLoader destructor handles orderly plugin teardown.

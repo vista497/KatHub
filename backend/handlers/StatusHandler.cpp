@@ -1,5 +1,6 @@
 #include "StatusHandler.h"
 #include "PluginRegistry.h"
+#include "SignalHub.h"
 
 #include "httplib.h"
 
@@ -47,6 +48,15 @@ void StatusHandler::handle(const char* /*request*/, void* response)
     json << "{\"status\":\"ok\",\"version\":\"0.1.0\",\"uptime\":" << uptimeSec << "}";
 
     res->set_content(json.str(), "application/json");
+
+    // Publish to SignalHub if available
+    if (signalHub_) {
+        QJsonObject status;
+        status[QStringLiteral("status")] = QStringLiteral("ok");
+        status[QStringLiteral("version")] = QStringLiteral("0.1.0");
+        status[QStringLiteral("uptime")] = static_cast<qint64>(uptimeSec);
+        signalHub_->publish(QStringLiteral("status"), status);
+    }
 }
 
 void StatusHandler::setStartTime(std::chrono::steady_clock::time_point t)
@@ -57,4 +67,9 @@ void StatusHandler::setStartTime(std::chrono::steady_clock::time_point t)
 std::chrono::steady_clock::time_point StatusHandler::startTime()
 {
     return startTime_;
+}
+
+void StatusHandler::setSignalHub(KatHub::SignalHub *hub)
+{
+    signalHub_ = hub;
 }

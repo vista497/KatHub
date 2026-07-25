@@ -9,6 +9,10 @@
 // Forward declarations
 class IHttpHandler;
 
+namespace KatHub {
+class SignalHub;
+}
+
 namespace httplib {
     class Server;
 }
@@ -31,6 +35,9 @@ public:
     // Maps IHttpHandler::route() + method() to an internal httplib handler lambda.
     void registerHandler(IHttpHandler *handler);
 
+    // Set the SignalHub for publishing events after each request.
+    void setSignalHub(KatHub::SignalHub *hub);
+
     // Returns true if the server is currently listening.
     bool isRunning() const;
 
@@ -51,4 +58,6 @@ private:
 
     mutable std::shared_mutex handlerMutex_;
     std::vector<IHttpHandler *> handlers_;
+
+    KatHub::SignalHub *signalHub_ = nullptr;
 };

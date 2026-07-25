@@ -1,7 +1,8 @@
-find_package(Qt6 REQUIRED COMPONENTS Core)
+find_package(Qt6 REQUIRED COMPONENTS Core WebSockets)
 
 add_subdirectory(domain)
 add_subdirectory(host)
+add_subdirectory(core)
 add_subdirectory(transport)
 add_subdirectory(handlers)
 
@@ -13,6 +14,7 @@ add_executable(kathub-backend
 target_link_libraries(kathub-backend PRIVATE
     kathub-transport
     kathub-handlers
+    kathub-core
     Qt6::Core
 )
 # MSVC discards static lib objects with no referenced symbols.
