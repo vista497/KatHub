@@ -9,3 +9,5 @@ node_modules/
 frontend/dist/
 backend/static/
 _vendor/
+publish/
+installer/staging/
