@@ -2,6 +2,7 @@
 
 #include "kathub/ai/IBackendProvider.h"
 
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QObject>
 
@@ -139,7 +140,7 @@ private:
 #define REGISTER_BACKEND(Type, ClassName)                                      \
     namespace                                                                  \
     {                                                                          \
-        static bool _kathub_backend_##ClassName = []() -> bool {               \
+        static const bool _kathub_backend_##__COUNTER__ = []() -> bool {       \
             BackendLoader::registerFactory(                                    \
                 Type,                                                          \
                 [](const ProviderConfig &cfg)                                  \

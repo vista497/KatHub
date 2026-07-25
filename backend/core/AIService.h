@@ -41,6 +41,20 @@ public:
     /// Add a provider. AIService does NOT take ownership.
     void addProvider(kathub::ai::IBackendProvider *provider);
 
+    /// Add a provider by taking ownership (unique_ptr).
+    void addProvider(std::unique_ptr<kathub::ai::IBackendProvider> provider);
+
+    /// Convenience: create and add an OpenRouter provider.
+    /// @param name      Provider name (e.g. "openrouter-gpt4")
+    /// @param apiKey    OpenRouter API key
+    /// @param model     Model name (e.g. "openai/gpt-4o")
+    /// @param endpoint  API endpoint (default: https://openrouter.ai/api/v1)
+    /// @return true if the provider was created and added.
+    bool addOpenRouterProvider(const std::string &name,
+                               const std::string &apiKey,
+                               const std::string &model = "openai/gpt-4o",
+                               const std::string &endpoint = "https://openrouter.ai/api/v1");
+
     /// Remove a provider by pointer.
     void removeProvider(kathub::ai::IBackendProvider *provider);
 
@@ -88,6 +102,7 @@ private:
 
     mutable std::mutex m_mutex;
     std::vector<Entry> m_providers;
+    std::vector<std::unique_ptr<kathub::ai::IBackendProvider>> m_ownedProviders;
     std::atomic<size_t> m_roundRobinIndex{0};
     Strategy m_strategy = Strategy::RoundRobin;
 };

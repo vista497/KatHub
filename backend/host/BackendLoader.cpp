@@ -3,6 +3,7 @@
 #include "PluginLoader.h"
 
 #include "kathub/ai/IBackendProvider.h"
+#include "OpenRouterClient.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -20,6 +21,9 @@
 #include <iostream>
 #include <regex>
 #include <sstream>
+
+// Register built-in OpenRouter backend provider
+REGISTER_BACKEND("openrouter", KatHub::OpenRouterClient)
 
 // ============================================================================
 //  Static factory registry

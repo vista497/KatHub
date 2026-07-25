@@ -1,4 +1,8 @@
 #include "AIService.h"
+#include "OpenRouterClient.h"
+
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include <iostream>
 #include <sstream>
@@ -43,6 +47,42 @@ void AIService::addProvider(kathub::ai::IBackendProvider *provider)
               << " (total: " << m_providers.size() << ")" << std::endl;
 
     emit providerAdded(QString::fromStdString(entry.name));
+}
+
+void AIService::addProvider(std::unique_ptr<kathub::ai::IBackendProvider> provider)
+{
+    if (!provider)
+        return;
+
+    kathub::ai::IBackendProvider *raw = provider.get();
+    m_ownedProviders.push_back(std::move(provider));
+    addProvider(raw);
+}
+
+bool AIService::addOpenRouterProvider(const std::string &name,
+                                      const std::string &apiKey,
+                                      const std::string &model,
+                                      const std::string &endpoint)
+{
+    // Build JSON config
+    QJsonObject cfg;
+    cfg[QStringLiteral("name")]     = QString::fromStdString(name);
+    cfg[QStringLiteral("api_key")]  = QString::fromStdString(apiKey);
+    cfg[QStringLiteral("model")]    = QString::fromStdString(model);
+    cfg[QStringLiteral("endpoint")] = QString::fromStdString(endpoint);
+
+    QJsonDocument doc(cfg);
+    std::string configJson = doc.toJson(QJsonDocument::Compact).toStdString();
+
+    auto client = std::make_unique<OpenRouterClient>();
+    if (!client->initialize(configJson)) {
+        std::cerr << "AIService: failed to initialize OpenRouter provider \""
+                  << name << "\"" << std::endl;
+        return false;
+    }
+
+    addProvider(std::move(client));
+    return true;
 }
 
 void AIService::removeProvider(kathub::ai::IBackendProvider *provider)

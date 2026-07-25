@@ -5,6 +5,12 @@ target_sources(kathub-core PRIVATE
     SignalHub.cpp
     AIService.h
     AIService.cpp
+    AppPaths.h
+    AppPaths.cpp
+    SettingsRegistry.h
+    SettingsRegistry.cpp
+    Logger.h
+    Logger.cpp
 )
 
 target_include_directories(kathub-core PUBLIC
@@ -14,5 +20,6 @@ target_include_directories(kathub-core PUBLIC
 
 target_link_libraries(kathub-core PUBLIC
     kathub-domain
+    kathub-ai
     Qt6::Core
 )
