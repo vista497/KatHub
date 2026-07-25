@@ -11,6 +11,7 @@ class PluginLoader;
 class PluginRegistry;
 class HttpServer;
 class WsServer;
+class QProcess;
 struct HostApi;
 
 namespace KatHub {
@@ -27,7 +28,8 @@ public:
     enum class Mode
     {
         Server,   // HTTP server mode
-        Hand      // GUI / WebView hand mode (stub)
+        Hand,     // GUI / WebView hand mode (stub)
+        Watchdog  // Monitor and restart a child server process
     };
 
     // Construct with command-line arguments and mode.
@@ -98,4 +100,12 @@ private:
 
     // Subsystems (Hand mode).
     std::unique_ptr<KatHub::HandWindow> handWindow_;
+
+    // Watchdog state.
+    std::unique_ptr<QProcess> watchdogChild_;
+    int watchdogRestarts_ = 0;
+    static constexpr int WATCHDOG_MAX_RESTARTS = 5;
+    static constexpr int WATCHDOG_BACKOFF_SEC = 3;
+    void watchdogStartChild();
+    void watchdogOnChildFinished(int exitCode, int exitStatus);
 };

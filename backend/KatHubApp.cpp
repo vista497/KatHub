@@ -24,8 +24,10 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QJsonObject>
+#include <QProcess>
 #include <QString>
 #include <QUrl>
+#include <QTimer>
 
 #include <iostream>
 #include <csignal>
@@ -122,6 +124,8 @@ void KatHubApp::parseArgs()
             mode_ = Mode::Server;
         } else if (arg == QStringLiteral("--hand")) {
             mode_ = Mode::Hand;
+        } else if (arg == QStringLiteral("--watchdog")) {
+            mode_ = Mode::Watchdog;
         } else if (arg == QStringLiteral("--port")) {
             if (i + 1 < args.size()) {
                 bool ok = false;
@@ -221,6 +225,12 @@ void KatHubApp::configureServices()
 
 void KatHubApp::init()
 {
+    if (mode_ == Mode::Watchdog) {
+        std::cout << "KatHub Watchdog starting..." << std::endl;
+        watchdogStartChild();
+        return;
+    }
+
     if (mode_ == Mode::Server) {
         std::cout << "KatHub starting in Server mode..." << std::endl;
 
@@ -450,4 +460,77 @@ int KatHubApp::wsPort() const
 QCoreApplication &KatHubApp::app()
 {
     return *app_;
+}
+
+// ============================================================================
+//  Watchdog
+// ============================================================================
+
+void KatHubApp::watchdogStartChild()
+{
+    if (watchdogRestarts_ >= WATCHDOG_MAX_RESTARTS) {
+        std::cerr << "[WATCHDOG] Max restarts (" << WATCHDOG_MAX_RESTARTS
+                  << ") reached. Giving up." << std::endl;
+        QCoreApplication::quit();
+        return;
+    }
+
+    // Find our own executable path
+    QString exePath = QCoreApplication::applicationFilePath();
+
+    std::cout << "[WATCHDOG] Starting child: " << exePath.toStdString()
+              << " --server --port " << port_
+              << " --ws-port " << wsPort_ << std::endl;
+
+    if (!watchdogChild_) {
+        watchdogChild_ = std::make_unique<QProcess>();
+        QObject::connect(watchdogChild_.get(),
+            QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            [this](int exitCode, QProcess::ExitStatus status) {
+                watchdogOnChildFinished(exitCode, status);
+            });
+    }
+
+    QStringList args;
+    args << QStringLiteral("--server")
+         << QStringLiteral("--port") << QString::number(port_)
+         << QStringLiteral("--ws-port") << QString::number(wsPort_);
+
+    watchdogChild_->start(exePath, args);
+}
+
+void KatHubApp::watchdogOnChildFinished(int exitCode, int exitStatus)
+{
+    bool crashed = (static_cast<QProcess::ExitStatus>(exitStatus) == QProcess::CrashExit);
+
+    if (crashed) {
+        std::cerr << "[WATCHDOG] Child CRASHED (exit code " << exitCode
+                  << "). Restart #" << (watchdogRestarts_ + 1) << "..." << std::endl;
+
+        // Read panic log if available.
+        std::string panicLog = KatHub::CrashHandler::readPanicLog();
+        if (!panicLog.empty()) {
+            std::cerr << "[WATCHDOG] Crash report:\n" << panicLog << std::endl;
+        }
+    } else {
+        std::cout << "[WATCHDOG] Child exited normally (code " << exitCode
+                  << ")." << std::endl;
+    }
+
+    if (exitCode == 0) {
+        // Clean exit — don't restart.
+        std::cout << "[WATCHDOG] Child exited cleanly. Watchdog done." << std::endl;
+        QCoreApplication::quit();
+        return;
+    }
+
+    // Restart with backoff.
+    ++watchdogRestarts_;
+    int backoff = WATCHDOG_BACKOFF_SEC * watchdogRestarts_;
+
+    std::cout << "[WATCHDOG] Restarting in " << backoff << " seconds..." << std::endl;
+
+    QTimer::singleShot(backoff * 1000, [this]() {
+        watchdogStartChild();
+    });
 }

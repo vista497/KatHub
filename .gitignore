@@ -1,5 +1,6 @@
 build/
 build*/
+**/build*/
 build_clean/
 build-msvc/
 .env
