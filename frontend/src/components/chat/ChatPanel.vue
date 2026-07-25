@@ -20,7 +20,7 @@ watch(() => chat.messages.length, async () => {
 <template>
   <div class="chat-panel">
     <div class="chat-header">
-      <span class="chat-title">{{ chat.activeSessionId || 'Chat' }}</span>
+      <span class="chat-title">{{ chat.sessions.find(s => s.id === chat.activeSessionId)?.title || 'Chat' }}</span>
       <span v-if="chat.sending" class="sending">...</span>
     </div>
 
