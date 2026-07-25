@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KatHub — Архитектурный граф</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --dim: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --orange: #d2991d;
+    --purple: #a371f7;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  header h1 {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+  }
+  header .badge {
+    background: #1f6feb33;
+    color: var(--accent);
+    border: 1px solid #1f6feb66;
+    border-radius: 12px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 0;
+    min-height: calc(100vh - 77px);
+  }
+  .graph-panel {
+    padding: 24px;
+    overflow: auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+  .graph-panel .mermaid {
+    width: 100%;
+    max-width: 900px;
+  }
+  .sidebar {
+    background: var(--card);
+    border-left: 1px solid var(--border);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    overflow-y: auto;
+  }
+  .sidebar h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--dim);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 13px;
+  }
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .stack-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .stack-tag {
+    background: var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+  }
+  .note {
+    font-size: 12px;
+    color: var(--dim);
+    line-height: 1.5;
+  }
+  .note strong {
+    color: var(--text);
+  }
+  .phase-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .phase-list li {
+    font-size: 12px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .phase-num {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #1f6feb33;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* Mermaid overrides */
+  .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon {
+    stroke-width: 2px !important;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏗️ KatHub</h1>
+  <span class="badge">Architecture v0.1</span>
+</header>
+
+<div class="layout">
+  <div class="graph-panel">
+    <div class="mermaid">
+graph TB
+    subgraph TAILSCALE["🔐 Tailscale Network (mesh VPN)"]
+        direction TB
+    end
+
+    subgraph HOST["🖥️ Host Machine — KatHub --server"]
+        direction TB
+        BINARY["katub.exe<br/>единый бинарник"]
+
+        subgraph BACKEND["C++ / Qt 6.7.3 Core"]
+            direction LR
+            APP["KatHubApp"]
+            ROUTER["Router<br/>REST handlers"]
+            SIGNAL["SignalHub<br/>event bus"]
+            SETTINGS["SettingsRegistry"]
+            PATHS["AppPaths"]
+        end
+
+        subgraph NETWORK["Network Layer"]
+            direction LR
+            HTTP["HttpServer<br/>cpp-httplib :8080"]
+            WS["WsServer<br/>Qt WebSockets :8081"]
+            STATIC["Static Files<br/>frontend/dist/"]
+        end
+
+        BINARY --> APP
+        APP --> ROUTER
+        APP --> SIGNAL
+        APP --> SETTINGS
+        APP --> PATHS
+        ROUTER --> HTTP
+        SIGNAL --> WS
+        HTTP --> STATIC
+        STATIC --> VUE
+        WS -.->|broadcast| WS
+    end
+
+    subgraph FRONTEND["🎨 Frontend — Vue 3 + Vite"]
+        direction TB
+        VUE["Vue SPA<br/>TypeScript"]
+        PINIA["Pinia Store"]
+        API["useApi()<br/>REST client"]
+        WSC["useWebSocket()<br/>WS client"]
+        VUE --> PINIA
+        PINIA --> API
+        PINIA --> WSC
+    end
+
+    subgraph HANDS["🤖 Hands (clients)"]
+        direction LR
+        HAND1["ПК #1<br/>WebEngineView"]
+        HAND2["📱 Телефон<br/>браузер"]
+        HAND3["📋 Планшет<br/>браузер"]
+    end
+
+    TAILSCALE -.->|mesh route| HANDS
+    TAILSCALE -.->|mesh route| HOST
+
+    API -->|"REST /api/*"| HTTP
+    WSC <-->|"WebSocket /ws"| WS
+    HAND1 -->|"http://kathub:8080"| VUE
+    HAND2 -->|"http://kathub:8080"| VUE
+    HAND3 -->|"http://kathub:8080"| VUE
+
+    classDef host fill:#161b22,stroke:#3fb950,stroke-width:2px,color:#c9d1d9
+    classDef front fill:#161b22,stroke:#a371f7,stroke-width:2px,color:#c9d1d9
+    classDef hand fill:#161b22,stroke:#d2991d,stroke-width:2px,color:#c9d1d9
+    classDef core fill:#0d1117,stroke:#58a6ff,stroke-width:1px,color:#8b949e
+    classDef net fill:#0d1117,stroke:#3fb950,stroke-width:1px,color:#8b949e
+    classDef vpn fill:#0d1117,stroke:#d2991d,stroke-width:1px,stroke-dasharray:5,color:#8b949e
+
+    class HOST host
+    class FRONTEND front
+    class HANDS hand
+    class APP,ROUTER,SIGNAL,SETTINGS,PATHS core
+    class HTTP,WS,STATIC net
+    class TAILSCALE vpn
+    class BINARY host
+    class VUE,PINIA,API,WSC front
+    class HAND1,HAND2,HAND3 hand
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <section>
+      <h2>🔗 Легенда</h2>
+      <div class="legend-item"><span class="legend-dot" style="background:#3fb950"></span> Хост (сервер)</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#a371f7"></span> Фронтенд (Vue 3)</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#d2991d"></span> Руки (клиенты)</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#58a6ff"></span> C++ Core</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#3fb950;border:1px dashed"></span> Network Layer</div>
+    </section>
+
+    <section>
+      <h2>🧱 Стек</h2>
+      <div class="stack-row">
+        <span class="stack-tag">Qt 6.7.3</span>
+        <span class="stack-tag">C++20</span>
+        <span class="stack-tag">MSVC 2022</span>
+        <span class="stack-tag">CMake</span>
+        <span class="stack-tag">cpp-httplib</span>
+        <span class="stack-tag">QtWebSockets</span>
+        <span class="stack-tag">QtWebEngine</span>
+      </div>
+      <div class="stack-row" style="margin-top:4px">
+        <span class="stack-tag">Vue 3</span>
+        <span class="stack-tag">Vite</span>
+        <span class="stack-tag">TypeScript</span>
+        <span class="stack-tag">Pinia</span>
+        <span class="stack-tag">Tailscale</span>
+        <span class="stack-tag">Inno Setup</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>📡 Протоколы</h2>
+      <div class="note">
+        <strong>REST :8080</strong> — статус, конфиг, сессии, логи<br>
+        <strong>WS :8081</strong> — стриминг AI, уведомления, real-time<br>
+        <strong>Tailscale</strong> — mesh VPN, магический DNS (<code>kathub</code>)
+      </div>
+    </section>
+
+    <section>
+      <h2>⚙️ Режимы запуска</h2>
+      <div class="note">
+        <strong>Сервер:</strong> <code>katub --server</code><br>
+        Поднимает HTTP + WS, раздаёт фронтенд.<br><br>
+        <strong>Рука:</strong> <code>katub</code><br>
+        WebEngineView → http://kathub:8080<br>
+        (магический DNS Tailscale)
+      </div>
+    </section>
+
+    <section>
+      <h2>📋 Фазы</h2>
+      <ol class="phase-list">
+        <li><span class="phase-num">1</span> CMake + HTTP + /api/status</li>
+        <li><span class="phase-num">2</span> WebSocket + event hub</li>
+        <li><span class="phase-num">3</span> Vue 3 фронтенд</li>
+        <li><span class="phase-num">4</span> WebEngine рука</li>
+        <li><span class="phase-num">5</span> Порт ядра AI_ControllerApp</li>
+        <li><span class="phase-num">6</span> Inno Setup инсталлятор</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>🔐 Безопасность</h2>
+      <div class="note">
+        Аутентификация на уровне Tailscale. Внутри mesh-сети — без паролей.<br>
+        Tailscale DNS: <code>kathub</code> → автомагически резолвится в IP хоста.
+      </div>
+    </section>
+  </aside>
+</div>
+
+<script>
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'dark',
+  themeVariables: {
+    primaryColor: '#161b22',
+    primaryBorderColor: '#30363d',
+    primaryTextColor: '#c9d1d9',
+    lineColor: '#30363d',
+    secondaryColor: '#0d1117',
+    tertiaryColor: '#0d1117',
+    fontSize: '13px',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  },
+  flowchart: {
+    useMaxWidth: true,
+    htmlLabels: true,
+    curve: 'basis',
+    padding: 20,
+    nodeSpacing: 60,
+    rankSpacing: 80,
+  },
+});
+</script>
+</body>
+</html>

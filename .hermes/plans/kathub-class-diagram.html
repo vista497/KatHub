@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KatHub — Архитектура v0.3 (Plugin System)</title>
+<style>
+  :root {
+    --bg: #0d1117; --card: #161b22; --border: #30363d;
+    --text: #c9d1d9; --dim: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --orange: #d2991d; --purple: #a371f7;
+    --red: #f85149; --pink: #db61a2;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex; flex-direction: column; min-height: 100vh;
+  }
+  header {
+    background: var(--card); border-bottom: 1px solid var(--border);
+    padding: 16px 32px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 20px; font-weight: 600; }
+  .badge {
+    background: #1f6feb33; color: var(--accent);
+    border: 1px solid #1f6feb66; border-radius: 10px;
+    padding: 2px 10px; font-size: 11px;
+  }
+  .tab-bar {
+    display: flex; background: var(--card);
+    border-bottom: 1px solid var(--border); padding: 0 32px;
+  }
+  .tab {
+    padding: 10px 20px; font-size: 13px; cursor: pointer;
+    border: none; border-bottom: 2px solid transparent;
+    color: var(--dim); background: none;
+    font-family: inherit; transition: all 0.15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .panel { display: none; padding: 24px; overflow: auto; flex: 1; }
+  .panel.active { display: flex; justify-content: center; }
+  .panel svg { max-width: 100%; height: auto; }
+  #diag-classes svg { min-width: 1200px; }
+  #diag-layers svg { min-width: 1000px; }
+  .summary-bar {
+    background: var(--card); border-top: 1px solid var(--border);
+    padding: 10px 32px; display: flex; flex-wrap: wrap;
+    gap: 16px; font-size: 11px; color: var(--dim);
+  }
+  .summary-bar span { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>KatHub — Plugin Architecture v0.3</h1>
+  <span class="badge">Ports & Adapters</span>
+  <span class="badge">DLL Plugins</span>
+  <span class="badge">Declarative Backends</span>
+  <span class="badge">Auto-Registration</span>
+  <span class="badge">Self-Update</span>
+</header>
+
+<div class="tab-bar">
+  <button class="tab active" onclick="switchTab('layers')">Слои</button>
+  <button class="tab" onclick="switchTab('classes')">Интерфейсы + Классы</button>
+  <button class="tab" onclick="switchTab('plugin')">Plugin Lifecycle</button>
+  <button class="tab" onclick="switchTab('update')">Self-Update</button>
+</div>
+
+<div class="panel active" id="tab-layers"><div id="diag-layers"></div></div>
+<div class="panel" id="tab-classes"><div id="diag-classes"></div></div>
+<div class="panel" id="tab-plugin"><div id="diag-plugin"></div></div>
+<div class="panel" id="tab-update"><div id="diag-update"></div></div>
+
+<div class="summary-bar">
+  <span><span class="dot" style="background:var(--purple)"></span> Composition Root</span>
+  <span><span class="dot" style="background:var(--green)"></span> Transport</span>
+  <span><span class="dot" style="background:var(--red)"></span> Application</span>
+  <span><span class="dot" style="background:var(--accent)"></span> Domain</span>
+  <span><span class="dot" style="background:var(--orange)"></span> Plugin Host</span>
+  <span><span class="dot" style="background:var(--pink)"></span> Self-Update</span>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  themeVariables: {
+    primaryColor: '#161b22',
+    primaryBorderColor: '#30363d',
+    primaryTextColor: '#c9d1d9',
+    lineColor: '#444c56',
+    secondaryColor: '#0d1117',
+    tertiaryColor: '#0d1117',
+    fontSize: '20px',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  },
+});
+
+// ============ LAYERS ============
+const layersCode = `graph TB
+    subgraph ROOT["Composition Root - KatHubApp"]
+        DIR["builds DI graph"]
+    end
+
+    subgraph TRANSPORT["Transport Adapters"]
+        HTTPSRV["HttpServer"]
+        WSSRV["WsServer"]
+        STATIC["StaticFileHandler"]
+        WEBVIEW["WebViewWindow"]
+    end
+
+    subgraph APP["Application Services"]
+        ROUTER["Router"]
+        EVENTS["EventBus"]
+        CONFIG["ConfigService"]
+        SESSIONS["SessionService"]
+        LOGS["LogService"]
+        AI["AIService"]
+    end
+
+    subgraph PLUGIN["Plugin Host"]
+        LOADER["PluginLoader"]
+        REG["PluginRegistry"]
+    end
+
+    subgraph DOMAIN["Domain - Ports & Values"]
+        PORTS["IHttpHandler IPlugin IObserver IAIBackend IUpdateFetcher"]
+        VALUES["VersionInfo Config Session BuildResult"]
+    end
+
+    subgraph UPDATE["Self-Update"]
+        CHECK["UpdateChecker"]
+        BUILD["BuildManager"]
+        PS["ProcessSupervisor"]
+    end
+
+    subgraph INFRA["Infrastructure"]
+        QSET["QSettings"]
+        FS["FileSystem"]
+        QT["Qt 6.7"]
+        HTTPLIB["cpp-httplib"]
+    end
+
+    DIR --> TRANSPORT
+    DIR --> APP
+    DIR --> PLUGIN
+    DIR --> UPDATE
+    APP --> DOMAIN
+    PLUGIN --> DOMAIN
+    TRANSPORT --> INFRA
+    UPDATE --> INFRA
+
+    LOADER --> REG
+    REG --> ROUTER
+    REG --> EVENTS
+    REG --> AI
+
+    style ROOT fill:#1a1a2e,stroke:#a371f7,stroke-width:2px,color:#c9d1d9
+    style TRANSPORT fill:#1a2e1a,stroke:#3fb950,stroke-width:2px,color:#c9d1d9
+    style APP fill:#2e1a1a,stroke:#f85149,stroke-width:2px,color:#c9d1d9
+    style PLUGIN fill:#2e2e1a,stroke:#d2991d,stroke-width:2px,color:#c9d1d9
+    style DOMAIN fill:#1a1a2e,stroke:#58a6ff,stroke-width:2px,color:#c9d1d9
+    style UPDATE fill:#2a1a2a,stroke:#db61a2,stroke-width:2px,color:#c9d1d9
+    style INFRA fill:#1a1a1a,stroke:#8b949e,stroke-width:2px,color:#c9d1d9`;
+
+// ============ CLASSES ============
+const classesCode = `classDiagram
+    direction TB
+
+    class IPlugin {
+        +name() QString
+        +version() Version
+        +init(hostApi) bool
+        +shutdown()
+    }
+    class IHttpHandler {
+        +route() QString
+        +method() HttpMethod
+        +handle(req, res)
+    }
+    class IObserver {
+        +onEvent(event, data)
+    }
+    class IAIBackend {
+        +id() QString
+        +send(msg, ctx) Response
+        +stream(msg, ctx, cb)
+        +configure(cfg)
+    }
+    class IUpdateFetcher {
+        +checkVersion() Version
+        +download(url, dest)
+    }
+
+    class KatHubApp {
+        +init(args) bool
+        +run() int
+        +requestShutdown()
+    }
+
+    class PluginLoader {
+        +scanDirectory(path) Plugins
+        +load(dllPath) IPlugin
+        +unload(plugin)
+        +reload(plugin)
+    }
+    class PluginRegistry {
+        +register(plugin)
+        +handlers() IHttpHandler[]
+        +observers() IObserver[]
+        +backends() IAIBackend[]
+        +findByName(name) IPlugin
+    }
+    class HostApi {
+        +router() Router
+        +eventBus() EventBus
+        +config() ConfigService
+        +log() LogService
+    }
+
+    class HttpServer {
+        +start(port) bool
+        +stop()
+    }
+    class WsServer {
+        +start(port) bool
+        +broadcast(event, data)
+    }
+    class StaticFileHandler
+    class WebViewWindow
+
+    class Router {
+        +register(handler)
+        +dispatch(req, res)
+    }
+    class EventBus {
+        +subscribe(observer)
+        +publish(event, data)
+    }
+    class ConfigService {
+        +load() Config
+        +save(config)
+        +get(key, default) QVariant
+        +schema() ConfigSchema
+    }
+    class ConfigSchema {
+        +keys() KeyDef[]
+        +validate(config) Errors
+        +defaults() Config
+    }
+    class SessionService
+    class LogService
+    class AIService {
+        +registerBackend(backend)
+        +send(backendId, msg, ctx) Response
+        +backends() IAIBackend[]
+    }
+    class BackendLoader {
+        +loadFromConfig(json) IAIBackend[]
+        +reload()
+    }
+    class OpenAICompatibleBackend {
+        +id() QString
+        +configure(cfg)
+        +send(msg, ctx) Response
+        +stream(msg, ctx, cb)
+    }
+
+    class StatusHandler
+    class ConfigHandler
+    class LogHandler
+    class SessionHandler
+    class AIHandler
+    class UpdateHandler
+
+    class UpdateChecker
+    class BuildManager
+    class ProcessSupervisor {
+        +launchNew(exe) bool
+        +healthCheck(url, retries) bool
+        +signalOld()
+        +waitOld(timeout)
+    }
+    class UpdatePipeline
+
+    class VersionInfo
+    class Config
+    class Session
+    class BuildResult
+    class KeyDef {
+        +path QString
+        +type Type
+        +default QVariant
+        +description QString
+    }
+
+    KatHubApp *-- PluginLoader
+    KatHubApp *-- PluginRegistry
+    KatHubApp *-- HostApi
+    KatHubApp *-- HttpServer
+    KatHubApp *-- WsServer
+    KatHubApp *-- WebViewWindow
+    KatHubApp *-- Router
+    KatHubApp *-- EventBus
+    KatHubApp *-- ConfigService
+    KatHubApp *-- SessionService
+    KatHubApp *-- LogService
+    KatHubApp *-- AIService
+    KatHubApp *-- BackendLoader
+    KatHubApp *-- UpdatePipeline
+
+    HostApi *-- Router
+    HostApi *-- EventBus
+    HostApi *-- ConfigService
+    HostApi *-- LogService
+
+    PluginLoader ..> PluginRegistry
+    PluginLoader ..> IPlugin
+    PluginRegistry ..> IPlugin
+
+    HttpServer *-- Router
+    HttpServer *-- StaticFileHandler
+    WsServer ..> EventBus
+
+    ConfigService *-- ConfigSchema
+    ConfigSchema *-- KeyDef
+    BackendLoader ..> IAIBackend
+    BackendLoader ..> ConfigService
+    AIService ..> IAIBackend
+
+    UpdatePipeline *-- UpdateChecker
+    UpdatePipeline *-- BuildManager
+    UpdatePipeline *-- ProcessSupervisor
+
+    StatusHandler ..|> IHttpHandler
+    ConfigHandler ..|> IHttpHandler
+    LogHandler ..|> IHttpHandler
+    SessionHandler ..|> IHttpHandler
+    AIHandler ..|> IHttpHandler
+    AIHandler ..|> IObserver
+    UpdateHandler ..|> IHttpHandler
+    OpenAICompatibleBackend ..|> IAIBackend
+    UpdateChecker ..|> IUpdateFetcher
+
+    ConfigHandler ..> ConfigService
+    LogHandler ..> LogService
+    SessionHandler ..> SessionService
+    AIHandler ..> AIService
+    UpdateHandler ..> UpdatePipeline
+    ConfigService ..> Config
+    SessionService ..> Session
+    UpdateChecker ..> VersionInfo
+    BuildManager ..> BuildResult`;
+
+// ============ PLUGIN LIFECYCLE ============
+const pluginCode = `sequenceDiagram
+    participant Main as KatHubApp
+    participant PL as PluginLoader
+    participant PR as PluginRegistry
+    participant DLL as handler_music.dll
+    participant P as MusicPlugin
+    participant R as Router
+    participant W as WsServer
+
+    Note over Main,W: Startup
+
+    Main->>PL: scanDirectory("plugins/")
+    PL->>PL: list *.dll files
+    PL->>DLL: QLibrary::load()
+    DLL-->>PL: createPlugin() factory
+    PL->>P: new MusicPlugin()
+
+    PL->>P: init(hostApi)
+    P->>R: registerHandler(this)
+    P->>W: registerObserver(this)
+
+    PL->>PR: register(musicPlugin)
+    PR->>PR: index by name, routes, events
+
+    Note over Main,W: Hot Reload
+
+    Main->>PL: reload("music")
+    PL->>P: shutdown()
+    P->>R: unregisterHandler(this)
+    P->>W: unregisterObserver(this)
+    PL->>DLL: QLibrary::unload()
+    PL->>DLL: QLibrary::load() new version
+    DLL-->>PL: createPlugin() factory
+    PL->>P: new MusicPlugin()
+    PL->>P: init(hostApi)
+    PL->>PR: update registry
+
+    Note over Main,W: Graceful: no requests dropped, old handler drained first`;
+
+// ============ SELF-UPDATE ============
+const updateCode = `sequenceDiagram
+    actor Katya
+    participant API as KatHub API
+    participant UP as UpdatePipeline
+    participant Git
+    participant CMake
+    participant PS as ProcessSupervisor
+    participant Old as Old katub.exe
+    participant New as New katub.exe
+
+    Katya->>API: POST /api/update/build
+    API->>UP: execute()
+
+    UP->>Git: git pull origin main
+    Git-->>UP: updated
+
+    UP->>CMake: cmake --build build --config Release
+    CMake-->>UP: Build OK
+
+    UP->>PS: launchNew("build/Release/katub.exe")
+    PS->>New: start process
+    New-->>PS: PID 18432
+
+    loop Health check (up to 30s)
+        PS->>New: GET /api/status
+        New-->>PS: 200 OK
+    end
+
+    PS->>Old: POST /api/shutdown
+    Old->>Old: flush sessions, close logs
+    Old-->>PS: shutting down
+
+    PS->>PS: waitOld(5000ms)
+
+    alt Old process exited
+        PS-->>UP: restart OK, new PID 18432
+    else Old process hung
+        PS->>Old: kill()
+        PS-->>UP: restart OK (force kill), new PID 18432
+    end
+
+    UP-->>API: restarted successfully
+    API-->>Katya: done`;
+
+async function renderAll() {
+  const diagrams = [
+    { id: 'diag-layers', code: layersCode },
+    { id: 'diag-classes', code: classesCode },
+    { id: 'diag-plugin', code: pluginCode },
+    { id: 'diag-update', code: updateCode },
+  ];
+  for (const d of diagrams) {
+    const el = document.getElementById(d.id);
+    if (!el) continue;
+    try {
+      const { svg } = await mermaid.render(d.id + '-svg', d.code);
+      el.innerHTML = svg;
+    } catch (e) {
+      el.innerHTML = '<pre style="color:#f85149;font-size:14px;padding:20px">ERROR: ' + e.message + '</pre>';
+    }
+  }
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+renderAll();
+</script>
+</body>
+</html>
