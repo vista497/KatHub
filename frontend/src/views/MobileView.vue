@@ -82,7 +82,8 @@ function handleNavigate(path: string) {
 .bottom-nav {
   display: flex;
   justify-content: space-around;
-  padding: var(--space-2);
+  padding: 6px 8px;
+  padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
   background: var(--color-bg-secondary);
   border-top: 1px solid var(--color-border);
 }
@@ -90,12 +91,13 @@ function handleNavigate(path: string) {
 .bottom-nav button {
   background: none;
   border: none;
-  font-size: 1.5rem;
-  padding: var(--space-2) var(--space-6);
+  font-size: 1.3rem;
+  padding: 8px 20px;
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: background var(--transition-fast);
   color: var(--color-text-secondary);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .bottom-nav button.active {

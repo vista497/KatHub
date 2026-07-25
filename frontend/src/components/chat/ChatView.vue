@@ -84,6 +84,7 @@ watch(() => chat.messages.length, async () => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
   border-bottom: 1px solid rgba(124, 92, 255, 0.12);
   background: var(--color-bg-secondary);
   flex-shrink: 0;
@@ -142,10 +143,11 @@ watch(() => chat.messages.length, async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 14px 16px;
   border-bottom: 1px solid rgba(124, 92, 255, 0.06);
   cursor: pointer;
   transition: background 0.1s;
+  min-height: 48px;
 }
 
 .session-option:hover,
@@ -175,8 +177,13 @@ watch(() => chat.messages.length, async () => {
   border: none;
   color: #666888;
   cursor: pointer;
-  font-size: 14px;
-  padding: 4px 8px;
+  font-size: 16px;
+  padding: 8px 12px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .session-option-delete:hover {
