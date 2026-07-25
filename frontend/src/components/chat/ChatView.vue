@@ -96,7 +96,10 @@ watch(() => chat.messages.length, async () => {
     </div>
 
     <!-- Messages -->
-    <div class="chat-messages" @click="showSessions = false">
+    <div class="chat-messages">
+      <div v-if="chat.hasMore" class="load-older" @click="chat.loadOlderMessages()">
+        ↑ Load older messages
+      </div>
       <ChatMessage v-for="m in chat.messages" :key="m.id" :message="m" />
       <div ref="messagesEnd"></div>
     </div>
@@ -287,6 +290,21 @@ watch(() => chat.messages.length, async () => {
   padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+}
+
+.load-older {
+  text-align: center;
+  padding: 12px;
+  color: var(--color-accent-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(124, 92, 255, 0.08);
+  margin-bottom: 8px;
+  transition: background 0.15s;
+}
+
+.load-older:hover,
+.load-older:active {
+  background: rgba(124, 92, 255, 0.06);
 }
 </style>

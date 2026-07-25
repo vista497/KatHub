@@ -3,7 +3,7 @@ import { ref } from 'vue'
 
 export interface ChatMessage {
   id: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'tool'
   content: string
   timestamp: number
 }
@@ -16,6 +16,9 @@ export interface ChatSession {
   updatedAt?: string
 }
 
+const PAGE_SIZE = 50
+const POLL_INTERVAL = 3000
+
 export const useChatStore = defineStore('chat', () => {
   const sessions = ref<ChatSession[]>([])
   const activeSessionId = ref<string | null>(null)
@@ -24,6 +27,9 @@ export const useChatStore = defineStore('chat', () => {
   const sending = ref(false)
   const messages = ref<ChatMessage[]>([])
   const loading = ref(false)
+  const displayCount = ref(PAGE_SIZE)
+  const hasMore = ref(false)
+  let pollTimer: ReturnType<typeof setInterval> | null = null
 
   // ── Load sessions from Hermes API ───────────────────────────
   async function loadSessions() {
@@ -32,7 +38,6 @@ export const useChatStore = defineStore('chat', () => {
       const resp = await fetch('/api/hermes/sessions')
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const data = await resp.json()
-      // Hermes API returns {object:"list", data:[...]} or array directly
       const raw: any[] = Array.isArray(data) ? data : (data.data || data.sessions || [])
       sessions.value = raw.map((s: any) => ({
         id: s.session_id || s.id,
@@ -43,52 +48,76 @@ export const useChatStore = defineStore('chat', () => {
       }))
     } catch (e) {
       console.warn('Failed to load Hermes sessions:', e)
-      sessions.value = []
     } finally {
       loading.value = false
     }
   }
 
-  // ── Load messages for a session ─────────────────────────────
+  // ── Load ALL messages into cache, show only last N ──────────
   async function loadMessages(sessionId: string) {
     try {
       const resp = await fetch(`/api/hermes/sessions/${sessionId}`)
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const data = await resp.json()
-      // Hermes API returns {object:"list", data:[...]} or array directly
-      const raw: any[] = Array.isArray(data) ? data : (data.data || data.messages || [])
-      // Update the session's messages cache
+      const raw: any[] = Array.isArray(data) ? data : (data.data || [])
+
+      const allMsgs: ChatMessage[] = raw.map((m: any) => ({
+        id: String(m.id || m.message_id || Math.random()),
+        role: m.role || 'assistant',
+        content: typeof m.content === 'string' ? m.content
+          : (m.content?.text || JSON.stringify(m.content)),
+        timestamp: typeof m.timestamp === 'number' ? m.timestamp * 1000
+          : (m.created_at ? new Date(m.created_at).getTime() : Date.now())
+      }))
+
+      // Cache all messages in the session
       const s = sessions.value.find(s => s.id === sessionId)
-      if (s) {
-        s.messages = raw.map((m: any) => ({
-          id: m.id || m.message_id || String(Math.random()),
-          role: m.role || 'assistant',
-          content: typeof m.content === 'string' ? m.content
-            : (m.content?.text || JSON.stringify(m.content)),
-          timestamp: typeof m.timestamp === 'number' ? m.timestamp * 1000
-            : (m.created_at ? new Date(m.created_at).getTime() : Date.now())
-        }))
-      }
-      return s?.messages || []
+      if (s) s.messages = allMsgs
+
+      return allMsgs
     } catch (e) {
       console.warn('Failed to load messages:', e)
       return []
     }
   }
 
-  // ── Open a session (load messages + activate) ───────────────
+  // ── Set visible window (pagination) ─────────────────────────
+  function applyDisplayWindow(allMsgs: ChatMessage[]) {
+    displayCount.value = PAGE_SIZE
+    const start = Math.max(0, allMsgs.length - displayCount.value)
+    messages.value = allMsgs.slice(start)
+    hasMore.value = start > 0
+  }
+
+  function loadOlderMessages() {
+    const sid = activeSessionId.value
+    if (!sid) return
+    const s = sessions.value.find(s => s.id === sid)
+    if (!s) return
+    const all = s.messages
+    const prevCount = displayCount.value
+    displayCount.value = Math.min(all.length, displayCount.value + PAGE_SIZE)
+    if (displayCount.value === prevCount) return
+
+    const start = Math.max(0, all.length - displayCount.value)
+    messages.value = all.slice(start)
+    hasMore.value = start > 0
+  }
+
+  // ── Open session + start polling ────────────────────────────
   async function openSession(sessionId: string) {
     activeSessionId.value = sessionId
     panelOpen.value = true
-    messages.value = await loadMessages(sessionId)
+    displayCount.value = PAGE_SIZE
+    const allMsgs = await loadMessages(sessionId)
+    applyDisplayWindow(allMsgs)
+    startPolling()
   }
 
   // ── Send message ────────────────────────────────────────────
   async function sendMessage(text: string) {
     if (!text.trim() || sending.value) return
-
-    // Ensure we have a session
-    let sid = activeSessionId.value
+    const sid = activeSessionId.value
 
     const msg: ChatMessage = {
       id: 'local-' + Date.now(),
@@ -107,23 +136,15 @@ export const useChatStore = defineStore('chat', () => {
       })
       const data = await resp.json()
 
-      // If server gave us a sessionId back, use it
       if (data.sessionId && !sid) {
-        sid = data.sessionId
-        activeSessionId.value = sid
-        // Reload sessions list (new session was created)
+        activeSessionId.value = data.sessionId
         loadSessions()
       }
 
       messages.value.push({
         id: data.message_id || data.id || 'msg-' + Date.now(),
         role: 'assistant',
-        content: data.reply
-          || data.message?.content
-          || data.content
-          || data.output
-          || data.error
-          || 'No response',
+        content: data.reply || data.message?.content || data.content || data.output || data.error || 'No response',
         timestamp: Date.now()
       })
     } catch (e) {
@@ -138,21 +159,69 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  // ── Polling for live updates ────────────────────────────────
+  async function pollForUpdates() {
+    const sid = activeSessionId.value
+    if (!sid || !panelOpen.value) return
+
+    try {
+      // Check sessions list for updated last_message_id
+      const resp = await fetch('/api/hermes/sessions')
+      const data = await resp.json()
+      const raw: any[] = Array.isArray(data) ? data : (data.data || [])
+      const fresh = raw.find((r: any) => (r.session_id || r.id) === sid)
+      if (!fresh) return
+
+      const serverLastId = fresh.last_message_id || 0
+      const s = sessions.value.find(s => s.id === sid)
+      const localLastId = s?.lastMessageId || 0
+
+      if (serverLastId > localLastId) {
+        // New messages arrived — reload
+        if (s) s.lastMessageId = serverLastId
+        const allMsgs = await loadMessages(sid)
+
+        // Append new messages (not full reload — keep scroll position)
+        const currentIds = new Set(messages.value.map(m => m.id))
+        const newMsgs = allMsgs.filter(m => !currentIds.has(m.id))
+        if (newMsgs.length > 0) {
+          messages.value = [...messages.value, ...newMsgs]
+          // Update displayCount to match
+          const all = s?.messages || allMsgs
+          const visibleCount = all.length - (allMsgs.length - messages.value.length)
+          displayCount.value = Math.max(PAGE_SIZE, visibleCount)
+          hasMore.value = messages.value.length < all.length
+        }
+      }
+    } catch (e) {
+      // Silent — polling failures are normal
+    }
+  }
+
+  function startPolling() {
+    stopPolling()
+    pollTimer = setInterval(pollForUpdates, POLL_INTERVAL)
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+  }
+
   // ── Create new session ──────────────────────────────────────
-  // Opens the panel; the real session is created by Hermes on first message.
   function newSession() {
     activeSessionId.value = null
     messages.value = []
     panelOpen.value = true
+    stopPolling()
   }
 
   // ── Delete session ──────────────────────────────────────────
   async function deleteSession(sessionId: string) {
-    // Call Hermes API to delete the session
     try {
-      await fetch(`/api/hermes/sessions/${encodeURIComponent(sessionId)}`, {
-        method: 'DELETE'
-      })
+      await fetch(`/api/hermes/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' })
     } catch (e) {
       console.warn('Failed to delete session on server:', e)
     }
@@ -161,20 +230,24 @@ export const useChatStore = defineStore('chat', () => {
       const next = sessions.value[0]
       activeSessionId.value = next?.id || null
       if (next) {
-        loadMessages(next.id).then(msgs => { messages.value = msgs })
+        openSession(next.id)
       } else {
         messages.value = []
+        stopPolling()
       }
     }
   }
 
-  function closePanel() { panelOpen.value = false }
+  function closePanel() {
+    panelOpen.value = false
+    stopPolling()
+  }
+
   function toggleSessions() { sessionsVisible.value = !sessionsVisible.value }
 
-  // ── Initialize — auto-select the most recently active session ──
+  // ── Initialize ──────────────────────────────────────────────
   loadSessions().then(() => {
     if (sessions.value.length > 0) {
-      // Sort by lastMessageId descending — most recently active first
       const sorted = [...sessions.value].sort((a, b) => (b.lastMessageId || 0) - (a.lastMessageId || 0))
       const best = sorted.find(s => (s.lastMessageId || 0) > 0) || sorted[0]
       openSession(best.id)
@@ -183,8 +256,9 @@ export const useChatStore = defineStore('chat', () => {
 
   return {
     messages, sessions, activeSessionId, panelOpen, sessionsVisible,
-    sending, loading,
+    sending, loading, hasMore,
     sendMessage, newSession, openSession, deleteSession,
     closePanel, toggleSessions, loadSessions, loadMessages,
+    loadOlderMessages,
   }
 })
