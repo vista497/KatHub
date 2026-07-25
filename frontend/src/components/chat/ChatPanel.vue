@@ -19,11 +19,6 @@ watch(() => chat.messages.length, async () => {
 
 <template>
   <div class="chat-panel">
-    <div class="chat-header">
-      <span class="chat-title">{{ chat.sessions.find(s => s.id === chat.activeSessionId)?.title || 'Chat' }}</span>
-      <span v-if="chat.sending" class="sending">...</span>
-    </div>
-
     <div class="chat-messages">
       <ChatMessage
         v-for="m in chat.messages"
@@ -40,37 +35,11 @@ watch(() => chat.messages.length, async () => {
 
 <style scoped>
 .chat-panel {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  height: 100%;
   background: #0e0e1a;
-}
-
-.chat-header {
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(124,92,255,0.12);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.chat-title {
-  font-size: 13px;
-  color: #aaaacc;
-  font-weight: 600;
-  flex: 1;
-}
-
-.sending {
-  color: #7c5cff;
-  font-size: 12px;
-  animation: pulse 1s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
 }
 
 .chat-messages {

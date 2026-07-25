@@ -116,6 +116,7 @@ onUnmounted(() => {
           <span class="chat-session-name">
             {{ chat.sessions.find(s => s.id === chat.activeSessionId)?.title || 'Chat' }}
           </span>
+          <span v-if="chat.sending" class="sending-dot">●</span>
           <button class="close-panel-btn" @click="chat.closePanel()">✕</button>
         </div>
         <ChatPanel />
@@ -355,6 +356,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 
 .chat-topbar {
@@ -370,6 +372,17 @@ onUnmounted(() => {
   font-size: 12px;
   color: #8888aa;
   font-weight: 600;
+}
+
+.sending-dot {
+  color: #7c5cff;
+  font-size: 8px;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
 }
 
 .close-panel-btn {

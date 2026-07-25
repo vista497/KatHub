@@ -12,6 +12,8 @@ export interface ChatSession {
   id: string
   title: string
   messages: ChatMessage[]
+  lastMessageId?: number
+  updatedAt?: string
 }
 
 export const useChatStore = defineStore('chat', () => {
@@ -35,6 +37,8 @@ export const useChatStore = defineStore('chat', () => {
       sessions.value = raw.map((s: any) => ({
         id: s.session_id || s.id,
         title: s.title || s.session_id || 'Untitled',
+        lastMessageId: s.last_message_id || 0,
+        updatedAt: s.updated_at || '',
         messages: []
       }))
     } catch (e) {
@@ -167,10 +171,13 @@ export const useChatStore = defineStore('chat', () => {
   function closePanel() { panelOpen.value = false }
   function toggleSessions() { sessionsVisible.value = !sessionsVisible.value }
 
-  // ── Initialize ──────────────────────────────────────────────
+  // ── Initialize — auto-select the most recently active session ──
   loadSessions().then(() => {
     if (sessions.value.length > 0) {
-      openSession(sessions.value[0].id)
+      // Sort by lastMessageId descending — most recently active first
+      const sorted = [...sessions.value].sort((a, b) => (b.lastMessageId || 0) - (a.lastMessageId || 0))
+      const best = sorted.find(s => (s.lastMessageId || 0) > 0) || sorted[0]
+      openSession(best.id)
     }
   })
 
