@@ -4,6 +4,7 @@
 
 #include <QWebSocketServer>
 #include <QWebSocket>
+#include <QNetworkProxy>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTimer>
@@ -47,6 +48,12 @@ void WsServer::start(quint16 port)
 {
     if (m_server->isListening())
         return;
+
+    // Disable system proxy for WebSocket server.
+    // Without this, QWebSocketServer::listen() fails with
+    // "SOCKSv5 command not supported" on machines with a
+    // system-wide SOCKS proxy configured.
+    QNetworkProxy::setApplicationProxy(QNetworkProxy::NoProxy);
 
     m_port = port;
 
