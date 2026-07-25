@@ -1,5 +1,4 @@
 #include "PluginRegistry.h"
-#include "EventBus.h"
 #include "IPlugin.h"
 #include "IHttpHandler.h"
 #include "SignalHub.h"
@@ -21,11 +20,6 @@ void PluginRegistry::setSignalHub(KatHub::SignalHub *hub)
     signalHub_ = hub;
 }
 
-void PluginRegistry::setEventBus(EventBus *bus)
-{
-    eventBus_ = bus;
-}
-
 void PluginRegistry::registerPlugin(IPlugin *plugin)
 {
     if (!plugin) return;
@@ -36,12 +30,6 @@ void PluginRegistry::registerPlugin(IPlugin *plugin)
         QJsonObject payload;
         payload[QStringLiteral("name")] = QString::fromStdString(plugin->name());
         signalHub_->publish(QStringLiteral("plugin.registered"), payload);
-    }
-
-    if (eventBus_) {
-        QJsonObject payload;
-        payload[QStringLiteral("name")] = QString::fromStdString(plugin->name());
-        eventBus_->publish(QStringLiteral("plugin.registered"), payload);
     }
 }
 
@@ -54,12 +42,6 @@ void PluginRegistry::unregisterPlugin(const std::string &name)
         QJsonObject payload;
         payload[QStringLiteral("name")] = QString::fromStdString(name);
         signalHub_->publish(QStringLiteral("plugin.unregistered"), payload);
-    }
-
-    if (eventBus_) {
-        QJsonObject payload;
-        payload[QStringLiteral("name")] = QString::fromStdString(name);
-        eventBus_->publish(QStringLiteral("plugin.unregistered"), payload);
     }
 }
 
@@ -97,17 +79,6 @@ void PluginRegistry::registerHandler(IHttpHandler *handler)
             handler->method() == IHttpHandler::HttpMethod::PUT    ? "PUT" :
             handler->method() == IHttpHandler::HttpMethod::DELETE ? "DELETE" : "GET");
         signalHub_->publish(QStringLiteral("handler.registered"), payload);
-    }
-
-    if (eventBus_) {
-        QJsonObject payload;
-        payload[QStringLiteral("route")] = QString::fromLatin1(handler->route());
-        payload[QStringLiteral("method")] = QString::fromLatin1(
-            handler->method() == IHttpHandler::HttpMethod::GET    ? "GET" :
-            handler->method() == IHttpHandler::HttpMethod::POST   ? "POST" :
-            handler->method() == IHttpHandler::HttpMethod::PUT    ? "PUT" :
-            handler->method() == IHttpHandler::HttpMethod::DELETE ? "DELETE" : "GET");
-        eventBus_->publish(QStringLiteral("handler.registered"), payload);
     }
 }
 

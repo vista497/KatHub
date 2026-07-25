@@ -6,8 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Qt integration
-find_package(Qt6 REQUIRED COMPONENTS Core WebSockets)
-find_package(Qt6 QUIET COMPONENTS WebEngineWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets WebSockets)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -18,13 +17,6 @@ set(CMAKE_AUTOUIC ON)
 if(MSVC)
     add_compile_options(/FS)
 endif()
-
-# nlohmann/json — header-only, bundled in libs/config/include/nlohmann/
-add_library(nlohmann_json INTERFACE)
-add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json)
-target_include_directories(nlohmann_json INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/config/include
-)
 
 # Google Test via FetchContent
 include(FetchContent)
@@ -38,12 +30,6 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
-add_subdirectory(libs/domain)
-add_subdirectory(libs/eventbus)
-add_subdirectory(libs/ui)
-add_subdirectory(libs/transport)
-add_subdirectory(libs/config)
-add_subdirectory(libs/backend)
 add_subdirectory(backend)
 add_subdirectory(tests/test_plugin)
 add_subdirectory(tests)

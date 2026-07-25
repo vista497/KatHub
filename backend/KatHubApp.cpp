@@ -1,6 +1,5 @@
 #include "KatHubApp.h"
 
-#include "EventBus.h"
 #include "HostApi.h"
 #include "HttpServer.h"
 #include "IHttpHandler.h"
@@ -13,6 +12,7 @@
 #include "WsServer.h"
 #include "WsStatusHandler.h"
 
+#include <QApplication>
 #include <QCoreApplication>
 #include <QJsonObject>
 #include <QString>
@@ -43,7 +43,13 @@ static void signalHandler(int /*sig*/)
 KatHubApp::KatHubApp(int argc, char *argv[], Mode mode)
     : mode_(mode)
 {
-    app_ = new QCoreApplication(argc, argv);
+    // Hand mode needs QApplication for QWidget / QWebEngineView.
+    // Server mode only needs QCoreApplication (no GUI dependency).
+    if (mode == Mode::Hand) {
+        app_ = new QApplication(argc, argv);
+    } else {
+        app_ = new QCoreApplication(argc, argv);
+    }
     g_app = this;
 
     std::signal(SIGINT, signalHandler);
@@ -160,10 +166,10 @@ HostApi &KatHubApp::hostApi()
 
 void KatHubApp::configureServices()
 {
-    // Create the Qt-based EventBus — the primary event bus for the system.
-    eventBus_ = std::make_unique<EventBus>();
+    // Create the Qt-based SignalHub — the primary event bus for the system.
+    signalHub_ = std::make_unique<KatHub::SignalHub>();
 
-    std::cout << "EventBus registered." << std::endl;
+    std::cout << "SignalHub registered." << std::endl;
 }
 
 // ============================================================================
@@ -187,9 +193,6 @@ void KatHubApp::init()
         // Wire SignalHub into PluginRegistry for lifecycle events.
         PluginRegistry::instance().setSignalHub(signalHub_.get());
 
-        // Wire EventBus into components for external event publishing.
-        PluginRegistry::instance().setEventBus(eventBus_.get());
-
         // Create the WebSocket server, connected to SignalHub.
         wsServer_ = std::make_unique<WsServer>(signalHub_.get());
         wsServer_->start(static_cast<quint16>(wsPort_));
@@ -197,7 +200,6 @@ void KatHubApp::init()
         // Create the HTTP server and wire it to SignalHub.
         httpServer_ = std::make_unique<HttpServer>();
         httpServer_->setSignalHub(signalHub_.get());
-        httpServer_->setEventBus(eventBus_.get());
 
         // Register built-in handlers registered via REGISTER_HANDLER macro.
         const auto &staticHandlers = StaticHandlerRegistry::instance().handlers();
@@ -231,7 +233,6 @@ void KatHubApp::init()
             readyPayload[QStringLiteral("port")] = port_;
             readyPayload[QStringLiteral("version")] = QStringLiteral("0.1.0");
             signalHub_->publish(QStringLiteral("system.ready"), readyPayload);
-            eventBus_->publish(QStringLiteral("system.ready"), readyPayload);
         }
 
     } else {

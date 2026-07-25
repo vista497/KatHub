@@ -8,7 +8,6 @@
 
 // Forward declarations
 class IHttpHandler;
-class EventBus;
 
 namespace KatHub {
 class SignalHub;
@@ -39,9 +38,6 @@ public:
     // Set the SignalHub for publishing events after each request.
     void setSignalHub(KatHub::SignalHub *hub);
 
-    // Set the EventBus for publishing events after each request.
-    void setEventBus(EventBus *bus);
-
     // Returns true if the server is currently listening.
     bool isRunning() const;
 
@@ -64,5 +60,4 @@ private:
     std::vector<IHttpHandler *> handlers_;
 
     KatHub::SignalHub *signalHub_ = nullptr;
-    EventBus *eventBus_ = nullptr;
 };

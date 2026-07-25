@@ -4,6 +4,7 @@ add_subdirectory(host)
 add_subdirectory(core)
 add_subdirectory(transport)
 add_subdirectory(handlers)
+add_subdirectory(ui)
 
 add_executable(kathub-backend
     main.cpp
@@ -16,9 +17,8 @@ target_link_libraries(kathub-backend PRIVATE
     kathub-core
     kathub-config
     kathub-ui
-    kathub-eventbus
     Qt6::Core
-    Qt6::WebEngineWidgets
+    Qt6::Widgets
 )
 if(MSVC)
     target_link_options(kathub-backend PRIVATE "/WHOLEARCHIVE:kathub-handlers")

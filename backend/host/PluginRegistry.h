@@ -8,7 +8,6 @@
 
 class IPlugin;
 class IHttpHandler;
-class EventBus;
 
 namespace KatHub {
 class SignalHub;
@@ -23,9 +22,6 @@ public:
 
     // Set the SignalHub for publishing lifecycle events.
     void setSignalHub(KatHub::SignalHub *hub);
-
-    // Set the EventBus for publishing lifecycle events.
-    void setEventBus(EventBus *bus);
 
     // ---- Plugin management ----
 
@@ -55,7 +51,6 @@ private:
     std::unordered_set<std::string> draining_;
 
     KatHub::SignalHub *signalHub_ = nullptr;
-    EventBus *eventBus_ = nullptr;
 };
 
 // ---------------------------------------------------------------------------

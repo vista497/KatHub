@@ -5,16 +5,12 @@ add_executable(kathub-tests
     test_plugin_lifecycle.cpp
     test_status_endpoint.cpp
     test_websocket.cpp
-    test_backend_loader.cpp
-    test_json_config.cpp
     config/test_config_service.cpp
 )
 
 # Include directories
 target_include_directories(kathub-tests PRIVATE
     ${CMAKE_SOURCE_DIR}/backend/thirdparty/cpp-httplib
-    ${CMAKE_SOURCE_DIR}/libs/domain/include
-    ${CMAKE_SOURCE_DIR}/libs/backend/include
     ${googletest_SOURCE_DIR}/googlemock/include
     ${googletest_SOURCE_DIR}/googletest/include
 )
@@ -30,31 +26,12 @@ target_link_libraries(kathub-tests PRIVATE
     kathub-transport
     kathub-handlers
     kathub-core
-    kathub-eventbus
-    kathub-json-config
-    kathub-backend-loader
     gtest
     Qt6::Core
     Qt6::WebSockets
     Qt6::Network
     Qt6::Test
 )
-
-# Standalone json config test
-add_executable(json-config-test
-    test_json_standalone.cpp
-)
-target_include_directories(json-config-test PRIVATE
-    ${CMAKE_SOURCE_DIR}/libs/config/include
-    ${googletest_SOURCE_DIR}/googletest/include
-)
-target_link_libraries(json-config-test PRIVATE
-    kathub-json-config
-    gtest
-)
-if(MSVC)
-    target_compile_options(json-config-test PRIVATE "/FS")
-endif()
 
 # Standalone ConfigService test (domain/ConfigService.h)
 add_executable(config-service-test
@@ -92,4 +69,7 @@ set_property(TEST kathub-tests PROPERTY
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${_qt_bin}"
 )
 
-add_test(NAME json-config-test COMMAND json-config-test)
+add_test(NAME config-service-test COMMAND config-service-test)
+set_property(TEST config-service-test PROPERTY
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${_qt_bin}"
+)

@@ -10,7 +10,6 @@ class PluginLoader;
 class PluginRegistry;
 class HttpServer;
 class WsServer;
-class EventBus;
 struct HostApi;
 
 namespace KatHub {
@@ -89,7 +88,6 @@ private:
     std::unique_ptr<PluginLoader> pluginLoader_;
     std::unique_ptr<HttpServer> httpServer_;
     std::unique_ptr<KatHub::SignalHub> signalHub_;
-    std::unique_ptr<EventBus> eventBus_;
     std::unique_ptr<WsServer> wsServer_;
 
     // Subsystems (Hand mode).
