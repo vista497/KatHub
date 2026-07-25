@@ -230,6 +230,9 @@ namespace {
         // Skip non-fatal exceptions — debug events, thread naming, etc.
         DWORD code = exInfo->ExceptionRecord->ExceptionCode;
         switch (code) {
+        case 0x4001000A:  // DBG_PRINTEXCEPTION_C — Qt debug output
+        case 0x406D1388:  // MS_VC_EXCEPTION — thread naming (NVIDIA/Qt)
+            return EXCEPTION_CONTINUE_SEARCH;  // Non-fatal, pass through
         case EXCEPTION_ACCESS_VIOLATION:
         case EXCEPTION_STACK_OVERFLOW:
         case EXCEPTION_ILLEGAL_INSTRUCTION:
@@ -299,10 +302,10 @@ namespace {
             } catch (...) {}
         }
 
-        // Write to stderr so it appears in console
-        std::cerr << "\n" << panic.str() << "\n";
+        // Write to file only — avoid console spam for non-fatal catches
+        // std::cerr << "\n" << panic.str() << "\n";
 
-        return EXCEPTION_EXECUTE_HANDLER; // Pass to next handler (→ WER / Dr. Watson)
+        return EXCEPTION_EXECUTE_HANDLER;
     }
 
 } // anonymous namespace

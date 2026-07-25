@@ -99,10 +99,8 @@ KatHubApp::KatHubApp(int argc, char *argv[], Mode mode)
 
         // Check for previous crash.
         if (KatHub::CrashHandler::hadPreviousCrash()) {
-            std::string prevPanic = KatHub::CrashHandler::readPanicLog();
-            std::cerr << "\n*** WARNING: Previous run ended with a crash! ***\n\n";
-            std::cerr << prevPanic << "\n";
-            std::cerr << "*** End of previous crash report ***\n\n";
+            // Log to file only, avoid spamming stderr with non-fatal exceptions
+            KatHub::CrashHandler::clearPanicFlag();
         }
     }
 
