@@ -1,0 +1,18 @@
+{
+    "profiles": [
+        {
+            "name": "default",
+            "systemPrompt": "templates/default-system.md",
+            "temperature": 0.7,
+            "maxTokens": 4096,
+            "description": "General-purpose assistant for everyday tasks"
+        },
+        {
+            "name": "coder",
+            "systemPrompt": "templates/coder-system.md",
+            "temperature": 0.3,
+            "maxTokens": 8192,
+            "description": "Code generation and review specialist"
+        }
+    ]
+}

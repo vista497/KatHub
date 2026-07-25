@@ -11,6 +11,12 @@
 #include "HandWindow.h"
 #include "WsServer.h"
 #include "WsStatusHandler.h"
+#include "ChatHandler.h"
+#include "ai/AIController.h"
+#include "ai/Conversation.h"
+#include "ai/ToolDispatcher.h"
+#include "prompts/PromptManager.h"
+#include "prompts/AgentProfile.h"
 
 #include <QApplication>
 #include <QCoreApplication>
@@ -208,6 +214,29 @@ void KatHubApp::init()
         httpServer_ = std::make_unique<HttpServer>();
         httpServer_->setSignalHub(signalHub_.get());
 
+        // --- AI Subsystem ---
+        // Create PromptManager with base directory for templates.
+        // Resolve prompts path relative to executable dir.
+        {
+            QDir promptsDir(QCoreApplication::applicationDirPath());
+            promptsDir.cdUp(); // Debug
+            promptsDir.cdUp(); // backend
+            promptsDir.cdUp(); // build
+            QString promptsPath = promptsDir.absoluteFilePath(
+                QStringLiteral("backend/prompts/templates"));
+            promptManager_ = std::make_unique<KatHub::PromptManager>(promptsPath);
+        }
+
+        // Create AIController — the bridge between handlers and AI backends.
+        // AIService is NOT set here (requires API key), but handlers can
+        // still work — ChatHandler returns an error if AIService is missing.
+        aiController_ = std::make_unique<KatHub::AIController>();
+        aiController_->setSignalHub(signalHub_.get());
+
+        // Set a default system prompt on the conversation.
+        aiController_->setSystemPrompt(
+            QStringLiteral("You are a helpful assistant."));
+
         // Register built-in handlers registered via REGISTER_HANDLER macro.
         const auto &staticHandlers = StaticHandlerRegistry::instance().handlers();
         for (auto *handler : staticHandlers) {
@@ -218,6 +247,11 @@ void KatHubApp::init()
             // If the handler is a WsStatusHandler, give it the WsServer.
             if (auto *wsh = dynamic_cast<WsStatusHandler *>(handler)) {
                 wsh->setWsServer(wsServer_.get());
+            }
+            // If the handler is a ChatHandler, inject AI dependencies.
+            if (auto *ch = dynamic_cast<ChatHandler *>(handler)) {
+                ch->setAIController(aiController_.get());
+                ch->setPromptManager(promptManager_.get());
             }
             httpServer_->registerHandler(handler);
             std::cout << "Registered handler: " << handler->route() << std::endl;

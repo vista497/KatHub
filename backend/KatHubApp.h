@@ -16,6 +16,8 @@ struct HostApi;
 namespace KatHub {
 class SignalHub;
 class HandWindow;
+class AIController;
+class PromptManager;
 }
 // Composition root for the KatHub application.
 // Owns all major subsystems and wires them together.
@@ -91,6 +93,8 @@ private:
     std::unique_ptr<HttpServer> httpServer_;
     std::unique_ptr<KatHub::SignalHub> signalHub_;
     std::unique_ptr<WsServer> wsServer_;
+    std::unique_ptr<KatHub::AIController> aiController_;
+    std::unique_ptr<KatHub::PromptManager> promptManager_;
 
     // Subsystems (Hand mode).
     std::unique_ptr<KatHub::HandWindow> handWindow_;

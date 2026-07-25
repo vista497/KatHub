@@ -7,6 +7,8 @@ target_sources(kathub-handlers PRIVATE
     WsStatusHandler.cpp
     PluginListHandler.h
     PluginListHandler.cpp
+    ChatHandler.h
+    ChatHandler.cpp
 )
 
 target_include_directories(kathub-handlers PUBLIC
@@ -15,6 +17,8 @@ target_include_directories(kathub-handlers PUBLIC
     ${CMAKE_SOURCE_DIR}/backend/host
     ${CMAKE_SOURCE_DIR}/backend/core
     ${CMAKE_SOURCE_DIR}/backend/transport
+    ${CMAKE_SOURCE_DIR}/backend/ai
+    ${CMAKE_SOURCE_DIR}/backend/prompts
     ${CMAKE_SOURCE_DIR}/backend/thirdparty/cpp-httplib
 )
 
@@ -22,5 +26,7 @@ target_link_libraries(kathub-handlers PUBLIC
     kathub-domain
     kathub-host
     kathub-core
+    kathub-ai
+    kathub-prompts
     Qt6::Core
 )

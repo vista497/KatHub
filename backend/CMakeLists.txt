@@ -1,6 +1,7 @@
 add_subdirectory(domain)
 add_subdirectory(config)
 add_subdirectory(ai)
+add_subdirectory(prompts)
 add_subdirectory(host)
 add_subdirectory(core)
 add_subdirectory(transport)
@@ -19,6 +20,7 @@ target_link_libraries(kathub-backend PRIVATE
     kathub-config
     kathub-ui
     kathub-ai
+    kathub-prompts
     Qt6::Core
     Qt6::Widgets
 )
