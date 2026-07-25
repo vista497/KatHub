@@ -27,7 +27,10 @@ public:
     // returns: JSON with agent reply
     std::string chat(const std::string& sessionId, const std::string& message);
 
-    // ── Health ──────────────────────────────────────────────────────────
+    // Delete session: DELETE /api/sessions/{id}
+    std::string deleteSession(const std::string& sessionId);
+
+    // Health check: GET /health
     bool isAlive();
 
 private:

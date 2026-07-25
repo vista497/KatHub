@@ -17,6 +17,7 @@
 #include "ChatHandler.h"
 #include "HermesApiClient.h"
 #include "HermesSessionsHandler.h"
+#include "httplib.h"
 #include "ai/AIController.h"
 #include "ai/Conversation.h"
 #include "ai/ToolDispatcher.h"
@@ -365,6 +366,17 @@ void KatHubApp::init()
             std::cout << "Registered handler: " << hsh->route() << std::endl;
         }
 
+        // DELETE route for session removal — uses httplib directly
+        {
+            auto api = hermesApi_;
+            httpServer_->server().Delete(R"(/api/hermes/sessions/(.*))",
+                [api](const httplib::Request &req, httplib::Response &res) {
+                    std::string sid = req.matches[1];
+                    std::string resp = api->deleteSession(sid);
+                    res.set_content(resp, "application/json; charset=utf-8");
+                });
+        }
+
         const auto &staticHandlers = StaticHandlerRegistry::instance().handlers();
         for (auto *handler : staticHandlers) {
             // If the handler is a StatusHandler, give it the SignalHub.
@@ -463,6 +475,17 @@ void KatHubApp::init()
             hsh->setApiClient(hermesApi_);
             httpServer_->registerHandler(hsh);
             std::cout << "Registered handler: " << hsh->route() << std::endl;
+        }
+
+        // DELETE route for session removal — uses httplib directly
+        {
+            auto api = hermesApi_;
+            httpServer_->server().Delete(R"(/api/hermes/sessions/(.*))",
+                [api](const httplib::Request &req, httplib::Response &res) {
+                    std::string sid = req.matches[1];
+                    std::string resp = api->deleteSession(sid);
+                    res.set_content(resp, "application/json; charset=utf-8");
+                });
         }
 
         // Register built-in handlers (StatusHandler, StaticFileHandler, etc.).

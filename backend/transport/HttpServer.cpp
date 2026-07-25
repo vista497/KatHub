@@ -117,15 +117,19 @@ void HttpServer::registerHandler(IHttpHandler *handler)
         switch (method) {
         case IHttpHandler::HttpMethod::GET:
             server_->Get(route, httplibHandler);
+            server_->Get(std::string(route) + "/(.*)", httplibHandler);
             break;
         case IHttpHandler::HttpMethod::POST:
             server_->Post(route, httplibHandler);
+            server_->Post(std::string(route) + "/(.*)", httplibHandler);
             break;
         case IHttpHandler::HttpMethod::PUT:
             server_->Put(route, httplibHandler);
+            server_->Put(std::string(route) + "/(.*)", httplibHandler);
             break;
         case IHttpHandler::HttpMethod::DELETE:
             server_->Delete(route, httplibHandler);
+            server_->Delete(std::string(route) + "/(.*)", httplibHandler);
             break;
         }
     }
@@ -184,15 +188,19 @@ void HttpServer::installHandlers()
         switch (method) {
         case IHttpHandler::HttpMethod::GET:
             server_->Get(route, httplibHandler);
+            server_->Get(std::string(route) + "/(.*)", httplibHandler);
             break;
         case IHttpHandler::HttpMethod::POST:
             server_->Post(route, httplibHandler);
+            server_->Post(std::string(route) + "/(.*)", httplibHandler);
             break;
         case IHttpHandler::HttpMethod::PUT:
             server_->Put(route, httplibHandler);
+            server_->Put(std::string(route) + "/(.*)", httplibHandler);
             break;
         case IHttpHandler::HttpMethod::DELETE:
             server_->Delete(route, httplibHandler);
+            server_->Delete(std::string(route) + "/(.*)", httplibHandler);
             break;
         }
     }

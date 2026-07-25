@@ -134,17 +134,23 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // ── Create new session ──────────────────────────────────────
-  async function newSession() {
-    const id = 'new-' + Date.now()
-    const session: ChatSession = { id, title: 'New chat', messages: [] }
-    sessions.value.unshift(session)
-    activeSessionId.value = id
+  // Opens the panel; the real session is created by Hermes on first message.
+  function newSession() {
+    activeSessionId.value = null
     messages.value = []
     panelOpen.value = true
   }
 
   // ── Delete session ──────────────────────────────────────────
-  function deleteSession(sessionId: string) {
+  async function deleteSession(sessionId: string) {
+    // Call Hermes API to delete the session
+    try {
+      await fetch(`/api/hermes/sessions/${encodeURIComponent(sessionId)}`, {
+        method: 'DELETE'
+      })
+    } catch (e) {
+      console.warn('Failed to delete session on server:', e)
+    }
     sessions.value = sessions.value.filter(s => s.id !== sessionId)
     if (activeSessionId.value === sessionId) {
       const next = sessions.value[0]

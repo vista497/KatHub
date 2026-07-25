@@ -77,6 +77,11 @@ std::string HermesApiClient::chat(const std::string& sessionId, const std::strin
 {
     QJsonObject body;
     body["message"] = QString::fromStdString(message);
-    std::string jsonBody = QJsonDocument(body).toJson(QJsonDocument::Compact).toStdString();
-    return request("POST", "/api/sessions/" + sessionId + "/chat", jsonBody);
+    QByteArray json = QJsonDocument(body).toJson(QJsonDocument::Compact);
+    return request("POST", "/api/sessions/" + sessionId + "/chat", json.toStdString());
+}
+
+std::string HermesApiClient::deleteSession(const std::string& sessionId)
+{
+    return request("DELETE", "/api/sessions/" + sessionId);
 }

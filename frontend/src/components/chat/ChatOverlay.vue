@@ -1,8 +1,43 @@
 <script setup lang="ts">
 import { useChatStore } from '../../stores/chatStore'
+import { ref, onUnmounted } from 'vue'
 import ChatPanel from './ChatPanel.vue'
 
 const chat = useChatStore()
+
+// Resize state
+const panelWidth = ref(420)
+const isResizing = ref(false)
+
+function startResize(e: MouseEvent) {
+  isResizing.value = true
+  const startX = e.clientX
+  const startW = panelWidth.value
+
+  function onMove(ev: MouseEvent) {
+    if (!isResizing.value) return
+    const delta = startX - ev.clientX
+    panelWidth.value = Math.max(280, Math.min(600, startW + delta))
+  }
+
+  function onUp() {
+    isResizing.value = false
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }
+
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+onUnmounted(() => {
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+})
 </script>
 
 <template>
@@ -13,7 +48,10 @@ const chat = useChatStore()
     </button>
 
     <!-- Slide-out panel -->
-    <div class="chat-panel-container">
+    <div class="chat-panel-container" :class="{ resizing: isResizing }" :style="{ width: panelWidth + 'px' }">
+      <!-- Resize handle -->
+      <div class="resize-handle" @mousedown="startResize"></div>
+
       <!-- Sessions sidebar (collapsible) -->
       <div class="sessions-sidebar" :class="{ hidden: !chat.sessionsVisible }">
         <div class="sessions-header">
@@ -37,7 +75,6 @@ const chat = useChatStore()
           >
             <span class="session-title">{{ s.title }}</span>
             <button
-              v-if="s.id !== 'telegram-default'"
               class="session-delete"
               @click.stop="chat.deleteSession(s.id)"
               title="Delete session"
@@ -104,7 +141,7 @@ const chat = useChatStore()
 
 /* Slide-out panel container */
 .chat-panel-container {
-  position: absolute;
+  position: fixed;
   right: 0;
   top: 0;
   bottom: 0;
@@ -114,13 +151,33 @@ const chat = useChatStore()
   border-left: 1px solid rgba(124, 92, 255, 0.15);
   display: flex;
   flex-direction: row;
-  transform: translateX(100%);
+  transform: translateX(calc(100% + 4px));
   transition: transform 0.25s ease;
   z-index: 100;
 }
 
 .chat-overlay.open .chat-panel-container {
   transform: translateX(0);
+}
+
+.chat-panel-container.resizing {
+  transition: none;
+}
+
+/* Resize handle — left edge of panel */
+.resize-handle {
+  position: absolute;
+  left: -4px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 101;
+  background: transparent;
+  transition: background 0.15s;
+}
+.resize-handle:hover {
+  background: rgba(124, 92, 255, 0.25);
 }
 
 /* Sessions sidebar */
