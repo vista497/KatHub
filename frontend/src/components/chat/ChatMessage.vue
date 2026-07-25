@@ -1,6 +1,6 @@
 <script setup lang="ts">
 defineProps<{
-  message: { id: string; role: string; content: string; timestamp: Date }
+  message: { id: string; role: string; content: string; timestamp: number }
 }>()
 </script>
 

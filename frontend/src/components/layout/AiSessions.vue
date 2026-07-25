@@ -6,30 +6,23 @@ const chat = useChatStore()
 
 <template>
   <div class="ai-sessions">
-    <div v-if="chat.sessions.length === 0 && !chat.sessionsLoading" class="empty">
-      No sessions yet
+    <button class="new-chat-btn" @click="chat.newSession()">
+      + New Chat
+    </button>
+
+    <div v-if="chat.sessions.length === 0" class="empty">
+      No sessions yet. Start a new chat!
     </div>
-    <div v-if="chat.sessionsLoading" class="loading">
-      Loading...
-    </div>
+
     <div
       v-for="s in chat.sessions"
       :key="s.id"
-      class="session-item"
-      :class="{ active: chat.activeSessionId === s.id }"
-      @click="chat.openSession(s.id)"
+      class="session-card"
+      @click="chat.toggleChat(s.id)"
     >
-      <span class="session-icon">💬</span>
-      <div class="session-info">
-        <div class="session-title">{{ s.title }}</div>
-        <div class="session-meta">{{ s.date }} · {{ s.messageCount }} msgs</div>
-      </div>
+      <div class="s-title">{{ s.title }}</div>
     </div>
   </div>
-
-  <button class="refresh-btn" @click="chat.fetchSessions()" :disabled="chat.sessionsLoading">
-    ↻ Refresh
-  </button>
 </template>
 
 <style scoped>
@@ -37,69 +30,48 @@ const chat = useChatStore()
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding: 4px 0;
 }
 
-.session-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+.new-chat-btn {
+  width: 100%;
+  padding: 8px;
+  background: rgba(124,92,255,0.15);
+  border: none;
+  border-radius: 6px;
+  color: #ccccee;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.new-chat-btn:hover {
+  background: rgba(124,92,255,0.3);
+}
+
+.session-card {
+  padding: 8px 10px;
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s;
 }
 
-.session-item:hover {
-  background: rgba(124,92,255,0.1);
+.session-card:hover {
+  background: rgba(124,92,255,0.12);
 }
 
-.session-item.active {
-  background: rgba(124,92,255,0.18);
-}
-
-.session-icon {
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.session-info {
-  min-width: 0;
-}
-
-.session-title {
+.s-title {
   font-size: 12px;
-  color: #ccccee;
-  white-space: nowrap;
+  color: #aaaacc;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.session-meta {
-  font-size: 10px;
-  color: #666688;
-}
-
-.empty, .loading {
-  padding: 12px 8px;
+.empty {
+  color: #666888;
   font-size: 12px;
-  color: #666688;
+  padding: 8px 0;
   text-align: center;
-}
-
-.refresh-btn {
-  margin-top: 8px;
-  width: 100%;
-  padding: 4px;
-  background: transparent;
-  border: 1px solid rgba(124,92,255,0.2);
-  border-radius: 4px;
-  color: #8888aa;
-  cursor: pointer;
-  font-size: 11px;
-}
-
-.refresh-btn:hover {
-  background: rgba(124,92,255,0.1);
-  color: #ccccee;
 }
 </style>

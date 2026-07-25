@@ -1,110 +1,105 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-export interface Message {
+export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
-  timestamp: Date
+  timestamp: number
 }
 
-export interface ChatSession {
-  id: string          // filename without .md
-  title: string
-  date: string
-  messageCount: number
-  path: string        // relative path in vault
+function loadSessions(): { id: string; title: string }[] {
+  try {
+    const raw = localStorage.getItem('kathub-chat-sessions')
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
 }
+
+function saveSessions(sessions: { id: string; title: string }[]) {
+  localStorage.setItem('kathub-chat-sessions', JSON.stringify(sessions))
+}
+
+let messageCounter = 0
 
 export const useChatStore = defineStore('chat', () => {
-  // Sessions list
-  const sessions = ref<ChatSession[]>([])
-  const sessionsLoading = ref(false)
+  const messages = ref<ChatMessage[]>([])
+  const sessions = ref<{ id: string; title: string }[]>(loadSessions())
   const activeSessionId = ref<string | null>(null)
-
-  // Active session messages
-  const messages = ref<Message[]>([])
-  const messagesLoading = ref(false)
-
-  // Chat overlay state
-  const activeChat = ref<string | null>(null)
   const panelOpen = ref(false)
+  const activeChat = ref<string | null>(null)
+  const sending = ref(false)
+  const messagesLoading = ref(false)
+  const sessionsLoading = ref(false)
 
-  function toggleChat(agentName: string) {
-    if (activeChat.value === agentName && panelOpen.value) {
+  async function sendMessage(text: string) {
+    if (!text.trim() || sending.value) return
+
+    const msg: ChatMessage = {
+      id: String(++messageCounter),
+      role: 'user',
+      content: text,
+      timestamp: Date.now()
+    }
+    messages.value.push(msg)
+    sending.value = true
+
+    try {
+      const resp = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+      })
+      const data = await resp.json()
+
+      messages.value.push({
+        id: String(++messageCounter),
+        role: 'assistant',
+        content: data.reply || data.error || 'No response',
+        timestamp: Date.now()
+      })
+    } catch (e) {
+      messages.value.push({
+        id: String(++messageCounter),
+        role: 'assistant',
+        content: 'Error: cannot reach server',
+        timestamp: Date.now()
+      })
+    } finally {
+      sending.value = false
+    }
+  }
+
+  function newSession() {
+    const id = 'session-' + Date.now()
+    activeSessionId.value = id
+    messages.value = []
+    sessions.value.unshift({ id, title: 'New chat' })
+    saveSessions(sessions.value)
+    panelOpen.value = true
+    activeChat.value = id
+  }
+
+  function toggleChat(sessionId: string) {
+    activeChat.value = sessionId
+    activeSessionId.value = sessionId
+    if (panelOpen.value && activeChat.value === sessionId) {
       panelOpen.value = false
     } else {
-      activeChat.value = agentName
       panelOpen.value = true
     }
   }
 
-  async function fetchSessions() {
-    sessionsLoading.value = true
-    try {
-      const res = await fetch('/api/vault/sessions')
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      sessions.value = data.sessions || []
-    } catch (e: any) {
-      console.error('Sessions load error:', e)
-    } finally {
-      sessionsLoading.value = false
-    }
+  function fetchSessions() {
+    sessions.value = loadSessions()
   }
 
-  async function openSession(sessionId: string) {
-    activeSessionId.value = sessionId
-    messagesLoading.value = true
-    try {
-      const res = await fetch(`/api/vault/sessions/${encodeURIComponent(sessionId)}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      messages.value = data.messages || []
-    } catch (e: any) {
-      console.error('Session load error:', e)
-      messages.value = []
-    } finally {
-      messagesLoading.value = false
-    }
-  }
-
-  async function sendMessage(text: string) {
-    if (!text.trim()) return
-    // Add user message locally
-    const userMsg: Message = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: text,
-      timestamp: new Date(),
-    }
-    messages.value.push(userMsg)
-
-    // Send to server
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        messages.value.push({
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: data.response || data.message || '',
-          timestamp: new Date(),
-        })
-      }
-    } catch (e: any) {
-      console.error('Chat send error:', e)
-    }
+  function openSession(id: string) {
+    activeSessionId.value = id
   }
 
   return {
-    sessions, sessionsLoading, activeSessionId,
-    messages, messagesLoading,
-    activeChat, panelOpen,
-    fetchSessions, openSession, sendMessage, toggleChat,
+    messages, sessions, activeSessionId, panelOpen, activeChat,
+    sending, messagesLoading, sessionsLoading,
+    sendMessage, newSession, toggleChat, fetchSessions, openSession
   }
 })

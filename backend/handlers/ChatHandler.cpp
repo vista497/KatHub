@@ -53,9 +53,14 @@ void ChatHandler::handle(const char *request, void *response)
 
     // --- Validate dependencies ---
     if (!m_aiCtrl) {
-        res->status = 500;
-        res->set_content(R"({"error":"AIController not configured"})",
-                         "application/json");
+        // Fallback: echo mode when AI Controller is not configured.
+        // Simply echo the raw request body back.
+        QJsonObject echoObj;
+        echoObj[QStringLiteral("reply")] =
+            QStringLiteral("[Echo mode] AI engine offline. Request received: %1 bytes")
+                .arg(static_cast<int>(strlen(request)));
+        QByteArray echoJson = QJsonDocument(echoObj).toJson(QJsonDocument::Compact);
+        res->set_content(echoJson.toStdString(), "application/json");
         return;
     }
 

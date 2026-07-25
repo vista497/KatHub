@@ -1,16 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue'
+import { watch, ref, nextTick } from 'vue'
 import { useChatStore } from '../../stores/chatStore'
 import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
 
 const chat = useChatStore()
 const messagesEnd = ref<HTMLDivElement>()
-
-const sessionTitle = computed(() => {
-  const s = chat.sessions.find(s => s.id === chat.activeSessionId)
-  return s?.title || chat.activeSessionId || 'Chat'
-})
 
 function handleSend(text: string) {
   chat.sendMessage(text)
@@ -25,20 +20,21 @@ watch(() => chat.messages.length, async () => {
 <template>
   <div class="chat-panel">
     <div class="chat-header">
-      <span class="chat-title">{{ sessionTitle }}</span>
+      <span class="chat-title">{{ chat.activeSessionId || 'Chat' }}</span>
+      <span v-if="chat.sending" class="sending">...</span>
     </div>
 
     <div class="chat-messages">
-      <div v-if="chat.messagesLoading" class="loading">Loading...</div>
       <ChatMessage
         v-for="m in chat.messages"
         :key="m.id"
         :message="m"
       />
+      <div v-if="chat.sending" class="typing">Thinking...</div>
       <div ref="messagesEnd"></div>
     </div>
 
-    <ChatInput @send="handleSend" />
+    <ChatInput @send="handleSend" :disabled="chat.sending" />
   </div>
 </template>
 
@@ -47,12 +43,15 @@ watch(() => chat.messages.length, async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #111122;
+  background: #0e0e1a;
 }
 
 .chat-header {
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(124,92,255,0.15);
+  border-bottom: 1px solid rgba(124,92,255,0.12);
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -60,6 +59,18 @@ watch(() => chat.messages.length, async () => {
   font-size: 13px;
   color: #aaaacc;
   font-weight: 600;
+  flex: 1;
+}
+
+.sending {
+  color: #7c5cff;
+  font-size: 12px;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
 }
 
 .chat-messages {
@@ -71,10 +82,9 @@ watch(() => chat.messages.length, async () => {
   gap: 4px;
 }
 
-.loading {
+.typing {
   color: #666888;
-  font-size: 12px;
-  text-align: center;
-  padding: 20px;
+  font-size: 11px;
+  padding: 4px 8px;
 }
 </style>

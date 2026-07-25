@@ -195,6 +195,21 @@ void WsServer::onTextMessageReceived(const QString &message)
 
         std::cout << "WsServer: client published to topic" << topic.toStdString() << std::endl;
 
+    } else if (type == QStringLiteral("chat")) {
+        // Chat message from UI client → echo back (placeholder for AI integration)
+        const QString text = obj.value(QStringLiteral("message")).toString();
+        if (text.isEmpty()) return;
+
+        std::cout << "WsServer: chat message: " << text.toStdString().substr(0, 80) << std::endl;
+
+        // Echo the message back to ALL clients (including sender)
+        QJsonObject reply;
+        reply[QStringLiteral("type")] = QStringLiteral("chat");
+        reply[QStringLiteral("message")] = text;
+        reply[QStringLiteral("role")] = QStringLiteral("assistant");
+        reply[QStringLiteral("id")] = QString::number(QDateTime::currentMSecsSinceEpoch());
+        broadcast(reply);
+
     } else {
         std::cout << "WsServer: unknown message type:" << type.toStdString() << std::endl;
     }
