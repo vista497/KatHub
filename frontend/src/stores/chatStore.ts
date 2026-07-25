@@ -51,8 +51,8 @@ export const useChatStore = defineStore('chat', () => {
       const resp = await fetch(`/api/hermes/sessions/${sessionId}`)
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const data = await resp.json()
-      // Hermes API returns array of {id, role, content, created_at, ...}
-      const raw: any[] = Array.isArray(data) ? data : (data.messages || [])
+      // Hermes API returns {object:"list", data:[...]} or array directly
+      const raw: any[] = Array.isArray(data) ? data : (data.data || data.messages || [])
       // Update the session's messages cache
       const s = sessions.value.find(s => s.id === sessionId)
       if (s) {
@@ -61,7 +61,8 @@ export const useChatStore = defineStore('chat', () => {
           role: m.role || 'assistant',
           content: typeof m.content === 'string' ? m.content
             : (m.content?.text || JSON.stringify(m.content)),
-          timestamp: m.created_at ? new Date(m.created_at).getTime() : Date.now()
+          timestamp: typeof m.timestamp === 'number' ? m.timestamp * 1000
+            : (m.created_at ? new Date(m.created_at).getTime() : Date.now())
         }))
       }
       return s?.messages || []

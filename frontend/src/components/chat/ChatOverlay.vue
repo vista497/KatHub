@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useChatStore } from '../../stores/chatStore'
-import { ref, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import ChatPanel from './ChatPanel.vue'
 
 const chat = useChatStore()
@@ -8,6 +8,18 @@ const chat = useChatStore()
 // Resize state
 const panelWidth = ref(420)
 const isResizing = ref(false)
+const windowWidth = ref(window.innerWidth)
+
+// When panel exceeds 1/3 of screen, center it
+const isCentered = computed(() => panelWidth.value > windowWidth.value / 3)
+
+function onWindowResize() {
+  windowWidth.value = window.innerWidth
+}
+window.addEventListener('resize', onWindowResize)
+onUnmounted(() => {
+  window.removeEventListener('resize', onWindowResize)
+})
 
 function startResize(e: MouseEvent) {
   isResizing.value = true
@@ -17,7 +29,7 @@ function startResize(e: MouseEvent) {
   function onMove(ev: MouseEvent) {
     if (!isResizing.value) return
     const delta = startX - ev.clientX
-    panelWidth.value = Math.max(280, Math.min(600, startW + delta))
+    panelWidth.value = Math.max(280, startW + delta)  // no max
   }
 
   function onUp() {
@@ -48,7 +60,9 @@ onUnmounted(() => {
     </button>
 
     <!-- Slide-out panel -->
-    <div class="chat-panel-container" :class="{ resizing: isResizing }" :style="{ width: panelWidth + 'px' }">
+    <div class="chat-panel-container"
+      :class="{ resizing: isResizing, centered: isCentered }"
+      :style="{ width: panelWidth + 'px' }">
       <!-- Resize handle -->
       <div class="resize-handle" @mousedown="startResize"></div>
 
@@ -158,6 +172,22 @@ onUnmounted(() => {
 
 .chat-overlay.open .chat-panel-container {
   transform: translateX(0);
+}
+
+/* Centered panel uses opacity animation instead of slide */
+.chat-panel-container.centered {
+  right: auto;
+  left: 50%;
+  border-right: 1px solid rgba(124, 92, 255, 0.15);
+  border-radius: 8px;
+  box-shadow: 0 0 60px rgba(124, 92, 255, 0.15);
+  transform: translateX(-50%) scale(0.95);
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.chat-overlay.open .chat-panel-container.centered {
+  transform: translateX(-50%) scale(1);
+  opacity: 1;
 }
 
 .chat-panel-container.resizing {
