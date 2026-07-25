@@ -1,3 +1,6 @@
+import { useServerStore } from '@/stores/serverStore'
+import { usePluginsStore } from '@/stores/pluginsStore'
+
 const BASE_URL = '/api'
 
 interface RequestOptions extends RequestInit {
@@ -34,6 +37,59 @@ async function request<T = unknown>(
   return response.json() as Promise<T>
 }
 
+interface ServerStatusResponse {
+  status: string
+  version: string
+  uptime: number
+}
+
+interface PluginResponse {
+  name: string
+  version: string
+  status: string
+}
+
+async function fetchServerStatus(): Promise<ServerStatusResponse> {
+  const serverStore = useServerStore()
+  serverStore.loading = true
+  serverStore.error = null
+  try {
+    const data = await request<ServerStatusResponse>('/status')
+    serverStore.serverStatus = {
+      status: data.status,
+      version: data.version,
+      uptime: data.uptime,
+    }
+    return data
+  } catch (e) {
+    serverStore.error = e instanceof Error ? e.message : String(e)
+    throw e
+  } finally {
+    serverStore.loading = false
+  }
+}
+
+async function fetchPlugins(): Promise<PluginResponse[]> {
+  const pluginsStore = usePluginsStore()
+  pluginsStore.loading = true
+  pluginsStore.error = null
+  try {
+    const data = await request<PluginResponse[]>('/plugins')
+    pluginsStore.plugins = data.map((p) => ({
+      name: p.name,
+      version: p.version,
+      enabled: p.status === 'loaded',
+      description: undefined,
+    }))
+    return data
+  } catch (e) {
+    pluginsStore.error = e instanceof Error ? e.message : String(e)
+    throw e
+  } finally {
+    pluginsStore.loading = false
+  }
+}
+
 export function useApi() {
   return {
     get<T = unknown>(endpoint: string, params?: Record<string, string>) {
@@ -54,5 +110,7 @@ export function useApi() {
     delete<T = unknown>(endpoint: string) {
       return request<T>(endpoint, { method: 'DELETE' })
     },
+    fetchServerStatus,
+    fetchPlugins,
   }
 }

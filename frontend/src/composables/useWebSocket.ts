@@ -1,6 +1,8 @@
 import { ref, onUnmounted } from 'vue'
+import { useEventsStore } from '@/stores/eventsStore'
+import { useServerStore } from '@/stores/serverStore'
 
-type MessageHandler = (data: unknown) => void
+export type WsConnectionStatus = 'connected' | 'disconnected' | 'reconnecting'
 
 interface WsMessage {
   type: string
@@ -9,15 +11,23 @@ interface WsMessage {
 }
 
 export function useWebSocket(wsUrl?: string) {
-  const url = wsUrl ?? `ws://${window.location.hostname}:8081/ws`
+  const url = wsUrl ?? `ws://${window.location.host}/ws`
   const ws = ref<WebSocket | null>(null)
   const connected = ref(false)
-  const handlers = new Map<string, Set<MessageHandler>>()
-  const wildcardHandlers = new Set<MessageHandler>()
+  const status = ref<WsConnectionStatus>('disconnected')
+  const handlers = new Map<string, Set<(data: unknown) => void>>()
+  const wildcardHandlers = new Set<(data: unknown) => void>()
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-  let reconnectDelay = 1000
-  const maxReconnectDelay = 30000
+  let reconnectAttempts = 0
   let destroyed = false
+
+  const eventsStore = useEventsStore()
+  const serverStore = useServerStore()
+
+  function updateStatus(newStatus: WsConnectionStatus) {
+    status.value = newStatus
+    serverStore.wsConnectionStatus = newStatus
+  }
 
   function connect() {
     if (destroyed) return
@@ -32,12 +42,18 @@ export function useWebSocket(wsUrl?: string) {
 
     ws.value.onopen = () => {
       connected.value = true
-      reconnectDelay = 1000
+      reconnectAttempts = 0
+      updateStatus('connected')
     }
 
     ws.value.onmessage = (event: MessageEvent) => {
       try {
         const msg: WsMessage = JSON.parse(event.data)
+        eventsStore.addEvent({
+          type: 'info',
+          message: JSON.stringify(msg.data ?? msg),
+          timestamp: Date.now(),
+        })
         dispatch(msg)
       } catch {
         // ignore malformed messages
@@ -47,6 +63,7 @@ export function useWebSocket(wsUrl?: string) {
     ws.value.onclose = () => {
       connected.value = false
       ws.value = null
+      updateStatus('disconnected')
       scheduleReconnect()
     }
 
@@ -57,32 +74,34 @@ export function useWebSocket(wsUrl?: string) {
 
   function scheduleReconnect() {
     if (destroyed) return
+    if (reconnectAttempts >= 10) return
     if (reconnectTimer) return
+
+    updateStatus('reconnecting')
+    reconnectAttempts++
+
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null
       connect()
-    }, reconnectDelay)
-    reconnectDelay = Math.min(reconnectDelay * 1.5, maxReconnectDelay)
+    }, 5000)
   }
 
   function dispatch(msg: WsMessage) {
+    const payload = msg.data ?? msg
     if (msg.topic && handlers.has(msg.topic)) {
-      handlers.get(msg.topic)!.forEach((fn) => fn(msg.data ?? msg))
+      handlers.get(msg.topic)!.forEach((fn) => fn(payload))
     }
-    wildcardHandlers.forEach((fn) => fn(msg.data ?? msg))
+    wildcardHandlers.forEach((fn) => fn(payload))
   }
 
-  function subscribe(topic: string, handler: MessageHandler) {
+  function subscribe(topic: string, handler: (data: unknown) => void) {
     if (!handlers.has(topic)) {
       handlers.set(topic, new Set())
     }
     handlers.get(topic)!.add(handler)
 
-    // Send subscribe to server
     if (ws.value?.readyState === WebSocket.OPEN) {
       ws.value.send(JSON.stringify({ type: 'subscribe', topic }))
-    } else {
-      // Will be sent on reconnect via the sendSubscriptions below
     }
 
     return () => {
@@ -90,7 +109,7 @@ export function useWebSocket(wsUrl?: string) {
     }
   }
 
-  function onMessage(handler: MessageHandler) {
+  function onMessage(handler: (data: unknown) => void) {
     wildcardHandlers.add(handler)
     return () => {
       wildcardHandlers.delete(handler)
@@ -115,6 +134,7 @@ export function useWebSocket(wsUrl?: string) {
       ws.value = null
     }
     connected.value = false
+    updateStatus('disconnected')
   }
 
   // Start connecting immediately
@@ -126,6 +146,7 @@ export function useWebSocket(wsUrl?: string) {
 
   return {
     connected,
+    status,
     subscribe,
     onMessage,
     publish,

@@ -26,24 +26,31 @@
     </nav>
 
     <div class="sidebar__footer">
-      <div class="sidebar__status">
-        <StatusBadge :status="serverOk ? 'ok' : 'error'">
-          {{ serverOk ? 'Сервер онлайн' : 'Сервер офлайн' }}
-        </StatusBadge>
-      </div>
-      <div class="sidebar__version" v-if="version">v{{ version }}</div>
+      <StatusBadge :status="serverStatusProp">{{ serverStatusText }}</StatusBadge>
     </div>
   </aside>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useAppStore } from '@/stores/appStore'
+import { useServerStore } from '@/stores/serverStore'
 import StatusBadge from './StatusBadge.vue'
 
-const store = useAppStore()
-const serverOk = computed(() => store.serverStatus?.status === 'ok')
-const version = computed(() => store.serverStatus?.version ?? null)
+const serverStore = useServerStore()
+
+const serverStatusProp = computed(() => {
+  if (serverStore.loading) return 'loading' as const
+  if (serverStore.error) return 'error' as const
+  if (serverStore.serverStatus?.status === 'ok') return 'ok' as const
+  return 'error' as const
+})
+
+const serverStatusText = computed(() => {
+  if (serverStore.loading) return '...'
+  if (serverStore.error) return 'Ошибка'
+  if (serverStore.serverStatus?.status === 'ok') return 'Онлайн'
+  return 'Офлайн'
+})
 </script>
 
 <style scoped>
@@ -125,18 +132,5 @@ const version = computed(() => store.serverStatus?.version ?? null)
 .sidebar__footer {
   padding: 14px 18px;
   border-top: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.sidebar__status {
-  display: flex;
-}
-
-.sidebar__version {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  color: var(--text-muted);
 }
 </style>
