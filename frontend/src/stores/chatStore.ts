@@ -39,7 +39,16 @@ export const useChatStore = defineStore('chat', () => {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const data = await resp.json()
       const raw: any[] = Array.isArray(data) ? data : (data.data || data.sessions || [])
-      sessions.value = raw.map((s: any) => ({
+      sessions.value = raw
+        .filter((s: any) => {
+          const sid = s.session_id || s.id
+          const msgCount = s.message_count || 0
+          // Skip junk: no session_id, 0 messages, or obviously non-dialog sessions
+          if (!sid) return false
+          if (msgCount === 0) return false
+          return true
+        })
+        .map((s: any) => ({
         id: s.session_id || s.id,
         title: s.title || s.session_id || 'Untitled',
         lastMessageId: s.last_message_id || 0,

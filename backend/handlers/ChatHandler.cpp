@@ -7,6 +7,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QProcess>
+#include <QDir>
 
 #include <memory>
 #include <chrono>
@@ -27,12 +29,6 @@ void ChatHandler::handle(const char* request, void* response)
 {
     auto* res = static_cast<httplib::Response*>(response);
 
-    if (!api_) {
-        res->set_content(R"({"error":"Hermes API client not configured"})", "application/json");
-        res->status = 500;
-        return;
-    }
-
     // Parse incoming JSON: {"message":"...", "sessionId":"..."}
     QJsonParseError parseErr;
     QJsonDocument reqDoc = QJsonDocument::fromJson(
@@ -52,40 +48,40 @@ void ChatHandler::handle(const char* request, void* response)
         return;
     }
 
+    // Use hermes send to forward the message to Telegram.
+    // The gateway will pick it up and process it as a normal incoming message.
+    // Target: telegram:329649100 (Мишка Успенский's DM)
+
+    QString hermesPath = QDir::toNativeSeparators(
+        QDir::homePath() + "/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe");
+    QStringList args;
+    args << "-m" << "hermes_cli.main" << "send"
+         << "--to" << "telegram:329649100"
+         << message;
+
+    QProcess proc;
+    proc.start(hermesPath, args);
+    bool finished = proc.waitForFinished(15000); // 15s timeout
+
+    QJsonObject reply;
+    if (finished && proc.exitCode() == 0) {
+        reply["status"] = QStringLiteral("sent");
+        reply["message"] = QStringLiteral("Message forwarded to Telegram. Response will appear shortly.");
+        res->status = 200;
+    } else {
+        QString err = proc.readAllStandardError();
+        reply["status"] = QStringLiteral("error");
+        reply["error"] = QStringLiteral("Failed to send: %1").arg(err.left(200));
+        res->status = 500;
+    }
+
+    // Include session ID so frontend can track
     QString sessionId = reqObj.value("sessionId").toString();
-    std::string sid = sessionId.toStdString();
-
-    // If no session, create one via Hermes API
-    if (sid.empty()) {
-        std::string createResp = api_->createSession();
-        QJsonDocument cd = QJsonDocument::fromJson(QByteArray::fromStdString(createResp));
-        if (cd.isObject()) {
-            QJsonObject obj = cd.object();
-            // Hermes API returns {"session": {"id": "api_..."}}
-            if (obj.contains("session") && obj["session"].isObject()) {
-                sid = obj["session"].toObject()["id"].toString().toStdString();
-            } else if (obj.contains("session_id")) {
-                sid = obj["session_id"].toString().toStdString();
-            }
-        }
-        if (sid.empty()) {
-            sid = "kat-" + std::to_string(
-                std::chrono::steady_clock::now().time_since_epoch().count());
-        }
+    if (!sessionId.isEmpty()) {
+        reply["sessionId"] = sessionId;
     }
 
-    // Forward to Hermes API
-    std::string replyJson = api_->chat(sid, message.toStdString());
-
-    // Inject sessionId into response so frontend can track it
-    QJsonDocument replyDoc = QJsonDocument::fromJson(QByteArray::fromStdString(replyJson));
-    QJsonObject replyObj;
-    if (replyDoc.isObject()) {
-        replyObj = replyDoc.object();
-    }
-    replyObj["sessionId"] = QString::fromStdString(sid);
-
-    QByteArray respJson = QJsonDocument(replyObj).toJson(QJsonDocument::Compact);
+    QByteArray respJson = QJsonDocument(reply).toJson(QJsonDocument::Compact);
     res->set_content(respJson.toStdString(), "application/json; charset=utf-8");
 }
 
