@@ -1,8 +1,10 @@
 #include "HandWindow.h"
 
-#include <QHBoxLayout>
-#include <QLabel>
-#include <QPushButton>
+#include <QApplication>
+#include <QCloseEvent>
+#include <QMenu>
+#include <QPainter>
+#include <QPixmap>
 #include <QVBoxLayout>
 
 namespace KatHub {
@@ -11,13 +13,11 @@ namespace KatHub {
 //  Construction / Destruction
 // ---------------------------------------------------------------------------
 
-HandWindow::HandWindow(const QUrl &initialUrl, QWidget *parent)
-    : QMainWindow(parent)
+HandWindow::HandWindow(const QUrl &initialUrl, int serverPort, QWidget *parent)
+    : QMainWindow(parent), serverPort_(serverPort)
 {
-    // Frameless window so we can draw our own title bar.
-    setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
-
     setupUi();
+    setupTrayIcon();
 
     // Load the initial URL once the UI is set up.
     if (!initialUrl.isEmpty()) {
@@ -33,7 +33,7 @@ HandWindow::~HandWindow() = default;
 
 void HandWindow::setupUi()
 {
-    // Central widget: title bar on top, WebEngine view below.
+    // Central widget with a WebEngine view that fills the entire window.
     auto *central = new QWidget(this);
     central->setObjectName(QStringLiteral("centralWidget"));
 
@@ -41,11 +41,6 @@ void HandWindow::setupUi()
     vbox->setContentsMargins(0, 0, 0, 0);
     vbox->setSpacing(0);
 
-    // Custom title bar.
-    titleBar_ = createTitleBar();
-    vbox->addWidget(titleBar_);
-
-    // WebEngine view fills the remaining space.
     webView_ = new QWebEngineView(central);
     webView_->setObjectName(QStringLiteral("webView"));
 
@@ -53,67 +48,85 @@ void HandWindow::setupUi()
     connect(webView_, &QWebEngineView::loadFinished,
             this, &HandWindow::onPageLoaded);
 
-    vbox->addWidget(webView_, /*stretch=*/1);
+    vbox->addWidget(webView_);
 
     setCentralWidget(central);
 
-    // Apply dark theme to the window.
-    setStyleSheet(QStringLiteral(
-        "#centralWidget { background-color: #1e1e2e; }"
-        "QWebEngineView { border: none; }"
-    ));
-
-    resize(1280, 800);
+    // Default size and title as specified.
+    resize(1024, 768);
     setWindowTitle(QStringLiteral("KatHub"));
 }
 
-QWidget *HandWindow::createTitleBar()
+// ---------------------------------------------------------------------------
+//  System tray icon
+// ---------------------------------------------------------------------------
+
+void HandWindow::setupTrayIcon()
 {
-    constexpr int kTitleBarHeight = 40;
-    const QString accentColor = QStringLiteral("#6C5CE7");
-    const QString bgColor = QStringLiteral("#2d2d3f");
-    const QString textColor = QStringLiteral("#cdd6f4");
+    trayIcon_ = new QSystemTrayIcon(this);
 
-    auto *bar = new QWidget();
-    bar->setObjectName(QStringLiteral("titleBar"));
-    bar->setFixedHeight(kTitleBarHeight);
-    bar->setStyleSheet(
-        QStringLiteral("#titleBar { background-color: %1; }").arg(bgColor));
+    // Generate a 16×16 blue icon with a white "K".
+    QPixmap pix(16, 16);
+    pix.fill(Qt::blue);
+    {
+        QPainter p(&pix);
+        p.setPen(Qt::white);
+        QFont f = p.font();
+        f.setPixelSize(12);
+        f.setBold(true);
+        p.setFont(f);
+        p.drawText(QRect(0, 0, 16, 16), Qt::AlignCenter, QStringLiteral("K"));
+    }
+    trayIcon_->setIcon(QIcon(pix));
+    trayIcon_->setToolTip(QStringLiteral("KatHub"));
 
-    auto *hbox = new QHBoxLayout(bar);
-    hbox->setContentsMargins(12, 0, 8, 0);
-    hbox->setSpacing(0);
+    // Right-click context menu.
+    auto *trayMenu = new QMenu(this);
 
-    // Application name label.
-    auto *title = new QLabel(QStringLiteral("KatHub"), bar);
-    title->setStyleSheet(
-        QStringLiteral("QLabel { color: %1; font-size: 14px; font-weight: bold; }")
-            .arg(accentColor));
-    hbox->addWidget(title);
+    auto *showAction = trayMenu->addAction(QStringLiteral("Show KatHub"));
+    connect(showAction, &QAction::triggered, this, [this]() {
+        show();
+        activateWindow();
+    });
 
-    hbox->addStretch();
+    // Informational item — server port (disabled, not clickable).
+    auto *serverInfo = trayMenu->addAction(
+        QStringLiteral("Server: Running on :%1").arg(serverPort_));
+    serverInfo->setEnabled(false);
 
-    // Close button.
-    auto *closeBtn = new QPushButton(QStringLiteral("\u2715"), bar);  // ✕
-    closeBtn->setFixedSize(32, 28);
-    closeBtn->setCursor(Qt::PointingHandCursor);
-    closeBtn->setStyleSheet(QStringLiteral(
-        "QPushButton {"
-        "  background: transparent;"
-        "  color: %1;"
-        "  border: none;"
-        "  border-radius: 6px;"
-        "  font-size: 16px;"
-        "}"
-        "QPushButton:hover {"
-        "  background-color: %2;"
-        "  color: #ffffff;"
-        "}"
-    ).arg(textColor, accentColor));
-    connect(closeBtn, &QPushButton::clicked, this, &QMainWindow::close);
-    hbox->addWidget(closeBtn);
+    trayMenu->addSeparator();
 
-    return bar;
+    auto *quitAction = trayMenu->addAction(QStringLiteral("Quit"));
+    connect(quitAction, &QAction::triggered, this, &HandWindow::quitRequested);
+
+    trayIcon_->setContextMenu(trayMenu);
+
+    // Double-click on tray icon restores the window.
+    connect(trayIcon_, &QSystemTrayIcon::activated,
+            [this](QSystemTrayIcon::ActivationReason reason) {
+                if (reason == QSystemTrayIcon::DoubleClick) {
+                    show();
+                    activateWindow();
+                }
+            });
+
+    trayIcon_->show();
+}
+
+// ---------------------------------------------------------------------------
+//  closeEvent — minimize to tray
+// ---------------------------------------------------------------------------
+
+void HandWindow::closeEvent(QCloseEvent *event)
+{
+    // Minimize to system tray instead of closing.
+    hide();
+    trayIcon_->showMessage(
+        QStringLiteral("KatHub"),
+        QStringLiteral("KatHub is still running in the system tray."),
+        QSystemTrayIcon::Information,
+        3000);
+    event->ignore();
 }
 
 // ---------------------------------------------------------------------------

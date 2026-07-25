@@ -266,14 +266,49 @@ void KatHubApp::init()
         // Wire SignalHub into HostApi for plugin access.
         hostApi_->eventBus = signalHub_.get();
 
+        // Create HTTP server so WebEngine can connect to localhost.
+        httpServer_ = std::make_unique<HttpServer>();
+        httpServer_->setSignalHub(signalHub_.get());
+
+        // Register built-in handlers (StatusHandler, StaticFileHandler, etc.).
+        const auto &staticHandlers = StaticHandlerRegistry::instance().handlers();
+        for (auto *handler : staticHandlers) {
+            if (auto *sh = dynamic_cast<StatusHandler *>(handler)) {
+                sh->setSignalHub(signalHub_.get());
+            }
+            httpServer_->registerHandler(handler);
+        }
+
+        // Mount static files (Vue 3 frontend).
+        {
+            QString exeDir = QCoreApplication::applicationDirPath();
+            QDir dir(exeDir);
+            dir.cdUp(); // Debug
+            dir.cdUp(); // backend
+            dir.cdUp(); // build
+            QString staticPath = dir.absoluteFilePath(QStringLiteral("backend/static"));
+            httpServer_->mountStaticDir(staticPath.toStdString(), "/");
+            std::cout << "Serving static files from: " << staticPath.toStdString() << std::endl;
+        }
+
+        httpServer_->start(port_);
+        std::cout << "Listening on :" << port_ << " (HTTP)" << std::endl;
+
         // Create HandWindow widget — frameless QMainWindow with QWebEngineView.
         const QString handUrl =
             QStringLiteral("http://%1:%2").arg(handHost_).arg(port_);
-        handWindow_ = std::make_unique<KatHub::HandWindow>(QUrl(handUrl));
+        handWindow_ = std::make_unique<KatHub::HandWindow>(QUrl(handUrl), port_);
         handWindow_->show();
 
         std::cout << "HandWindow connecting to " << handUrl.toStdString()
                   << std::endl;
+
+        // Quit from tray: stop server first, then exit cleanly.
+        QObject::connect(handWindow_.get(), &KatHub::HandWindow::quitRequested,
+                [this]() {
+                    requestShutdown();
+                    QCoreApplication::quit();
+                });
 
         // Wire to EventBus: receive navigation commands.
         signalHub_->subscribe(QStringLiteral("navigate.to"),
