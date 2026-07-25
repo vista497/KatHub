@@ -87,11 +87,19 @@ function initGraph() {
 
   node.call(drag)
 
-  // Circles — larger on touch devices
+  // Circles — much larger on touch, with invisible hit area
   const nodeR = (d: any) => {
     const base = d.type === 'folder' ? 7 : 4
-    return isTouchDevice ? base * 2.5 : base
+    return isTouchDevice ? base * 6 : base  // 24px/42px on phone
   }
+  const hitR = (d: any) => nodeR(d) + (isTouchDevice ? 12 : 4)  // extra 12px touch slop
+
+  // Invisible hit circle (larger touch target)
+  node.append('circle')
+    .attr('r', hitR)
+    .attr('fill', 'transparent')
+    .attr('stroke', 'none')
+
   const circles = node.append('circle')
     .attr('r', nodeR)
     .attr('fill', (d: any) => {
@@ -103,6 +111,11 @@ function initGraph() {
     })
     .attr('opacity', 0.9)
 
+  // Glow on touch devices
+  if (isTouchDevice) {
+    circles.attr('filter', 'url(#glow)')
+  }
+
   // Public function to update selection styling WITHOUT reinit
   function updateSelection(id: string | null) {
     circles
@@ -113,12 +126,16 @@ function initGraph() {
   updateSelection(graph.selectedNode)
 
   // Labels — larger on touch, visible at lower zoom
-  const labelSize = isTouchDevice ? '11px' : '6px'
+  const labelSize = isTouchDevice ? '13px' : '6px'
+  const labelDx = (d: any) => {
+    const r = nodeR(d)
+    return d.type === 'folder' ? r + 6 : r + 4
+  }
   const labels = node.append('text')
     .text((d: any) => d.label)
     .attr('font-size', labelSize)
     .attr('fill', '#ccccee')
-    .attr('dx', (d: any) => d.type === 'folder' ? (isTouchDevice ? 20 : 10) : (isTouchDevice ? 14 : 6))
+    .attr('dx', labelDx)
     .attr('dy', 3)
     .attr('opacity', 0)
     .attr('pointer-events', 'none')

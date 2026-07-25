@@ -7,10 +7,28 @@ import { useChatStore } from '../../stores/chatStore'
 const chat = useChatStore()
 const messagesEnd = ref<HTMLDivElement>()
 const showSessions = ref(false)
+const sessionPage = ref(10)
+const sessionFilter = ref('')
 
 const activeTitle = computed(() =>
   chat.sessions.find(s => s.id === chat.activeSessionId)?.title || 'Chat',
 )
+
+const filteredSessions = computed(() => {
+  const q = sessionFilter.value.toLowerCase()
+  const all = q
+    ? chat.sessions.filter(s => s.title.toLowerCase().includes(q))
+    : chat.sessions
+  return all.slice(0, sessionPage.value)
+})
+
+const hasMore = computed(() => {
+  const q = sessionFilter.value.toLowerCase()
+  const all = q
+    ? chat.sessions.filter(s => s.title.toLowerCase().includes(q))
+    : chat.sessions
+  return sessionPage.value < all.length
+})
 
 function handleSend(text: string) {
   chat.sendMessage(text)
@@ -19,6 +37,12 @@ function handleSend(text: string) {
 function selectSession(id: string) {
   chat.openSession(id)
   showSessions.value = false
+  sessionFilter.value = ''
+  sessionPage.value = 10
+}
+
+function loadMore() {
+  sessionPage.value += 10
 }
 
 watch(() => chat.messages.length, async () => {
@@ -42,8 +66,16 @@ watch(() => chat.messages.length, async () => {
 
     <!-- Session list dropdown -->
     <div v-if="showSessions" class="session-dropdown">
+      <div class="session-search">
+        <input
+          v-model="sessionFilter"
+          type="text"
+          placeholder="Search sessions..."
+          class="search-input"
+        />
+      </div>
       <div
-        v-for="s in chat.sessions"
+        v-for="s in filteredSessions"
         :key="s.id"
         class="session-option"
         :class="{ active: s.id === chat.activeSessionId }"
@@ -55,8 +87,11 @@ watch(() => chat.messages.length, async () => {
           @click.stop="chat.deleteSession(s.id)"
         >✕</button>
       </div>
-      <div v-if="chat.sessions.length === 0" class="no-sessions">
-        Нет чатов
+      <button v-if="hasMore" class="load-more-btn" @click="loadMore">
+        Show more ({{ chat.sessions.length - sessionPage }} left)
+      </button>
+      <div v-if="filteredSessions.length === 0" class="no-sessions">
+        {{ sessionFilter ? 'No matches' : 'No chats yet' }}
       </div>
     </div>
 
@@ -134,9 +169,38 @@ watch(() => chat.messages.length, async () => {
   z-index: 10;
   background: #0d0d24;
   border-bottom: 1px solid rgba(124, 92, 255, 0.15);
-  max-height: 60vh;
+  max-height: 70vh;
   overflow-y: auto;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+.session-search {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(124, 92, 255, 0.08);
+  position: sticky;
+  top: 0;
+  background: #0d0d24;
+  z-index: 1;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid rgba(124, 92, 255, 0.15);
+  border-radius: 8px;
+  background: #0a0a1e;
+  color: #ccccee;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: var(--color-accent);
+}
+
+.search-input::placeholder {
+  color: #555577;
 }
 
 .session-option {
@@ -195,6 +259,25 @@ watch(() => chat.messages.length, async () => {
   text-align: center;
   color: #666888;
   font-size: 13px;
+}
+
+.load-more-btn {
+  width: 100%;
+  padding: 12px;
+  background: none;
+  border: none;
+  border-top: 1px solid rgba(124, 92, 255, 0.08);
+  color: #8888aa;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background 0.1s;
+}
+
+.load-more-btn:hover,
+.load-more-btn:active {
+  background: rgba(124, 92, 255, 0.08);
+  color: #ccccee;
 }
 
 /* ── Messages ────────────────────────────────── */
