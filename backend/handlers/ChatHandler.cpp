@@ -59,10 +59,16 @@ void ChatHandler::handle(const char* request, void* response)
     if (sid.empty()) {
         std::string createResp = api_->createSession();
         QJsonDocument cd = QJsonDocument::fromJson(QByteArray::fromStdString(createResp));
-        if (cd.isObject() && cd.object().contains("session_id")) {
-            sid = cd.object()["session_id"].toString().toStdString();
-        } else {
-            // Fallback: use a generated ID
+        if (cd.isObject()) {
+            QJsonObject obj = cd.object();
+            // Hermes API returns {"session": {"id": "api_..."}}
+            if (obj.contains("session") && obj["session"].isObject()) {
+                sid = obj["session"].toObject()["id"].toString().toStdString();
+            } else if (obj.contains("session_id")) {
+                sid = obj["session_id"].toString().toStdString();
+            }
+        }
+        if (sid.empty()) {
             sid = "kat-" + std::to_string(
                 std::chrono::steady_clock::now().time_since_epoch().count());
         }

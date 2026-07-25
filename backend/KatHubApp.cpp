@@ -430,6 +430,41 @@ void KatHubApp::init()
         httpServer_ = std::make_unique<HttpServer>();
         httpServer_->setSignalHub(signalHub_.get());
 
+        // ── Hermes Agent API client ──────────────────────────────
+        // Read API key from .env file.
+        {
+            QString apiKey;
+            QFile envFile(
+                QDir(QDir::homePath())
+                    .absoluteFilePath("AppData/Local/hermes/.env"));
+            if (envFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QTextStream in(&envFile);
+                while (!in.atEnd()) {
+                    QString line = in.readLine().trimmed();
+                    if (line.startsWith("API_SERVER_KEY=")) {
+                        apiKey = line.mid(15);
+                        break;
+                    }
+                }
+                envFile.close();
+            }
+            if (apiKey.isEmpty()) {
+                std::cerr << "WARNING: Hermes API key not found in .env" << std::endl;
+            }
+            hermesApi_ = std::make_shared<HermesApiClient>(
+                "http://127.0.0.1:8642", apiKey.toStdString());
+            std::cout << "Hermes API client created (alive="
+                      << (hermesApi_->isAlive() ? "yes" : "no") << ")" << std::endl;
+        }
+
+        // ── Hermes Sessions handler ─────────────────────────────
+        {
+            auto *hsh = new HermesSessionsHandler();
+            hsh->setApiClient(hermesApi_);
+            httpServer_->registerHandler(hsh);
+            std::cout << "Registered handler: " << hsh->route() << std::endl;
+        }
+
         // Register built-in handlers (StatusHandler, StaticFileHandler, etc.).
         // Directly instantiate VaultGraphHandler (no QObject — REGISTER_HANDLER
         // may not force-link under MSVC).
@@ -453,6 +488,9 @@ void KatHubApp::init()
         for (auto *handler : staticHandlers) {
             if (auto *sh = dynamic_cast<StatusHandler *>(handler)) {
                 sh->setSignalHub(signalHub_.get());
+            }
+            if (auto *ch = dynamic_cast<ChatHandler *>(handler)) {
+                ch->setApiClient(hermesApi_);
             }
             httpServer_->registerHandler(handler);
         }

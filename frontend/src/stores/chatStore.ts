@@ -30,8 +30,8 @@ export const useChatStore = defineStore('chat', () => {
       const resp = await fetch('/api/hermes/sessions')
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const data = await resp.json()
-      // Hermes API returns array of {session_id, title, created_at, ...}
-      const raw: any[] = Array.isArray(data) ? data : (data.sessions || [])
+      // Hermes API returns {object:"list", data:[...]} or array directly
+      const raw: any[] = Array.isArray(data) ? data : (data.data || data.sessions || [])
       sessions.value = raw.map((s: any) => ({
         id: s.session_id || s.id,
         title: s.title || s.session_id || 'Untitled',
@@ -111,9 +111,14 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       messages.value.push({
-        id: data.message_id || 'msg-' + Date.now(),
+        id: data.message_id || data.id || 'msg-' + Date.now(),
         role: 'assistant',
-        content: data.reply || data.content || data.output || data.error || 'No response',
+        content: data.reply
+          || data.message?.content
+          || data.content
+          || data.output
+          || data.error
+          || 'No response',
         timestamp: Date.now()
       })
     } catch (e) {
