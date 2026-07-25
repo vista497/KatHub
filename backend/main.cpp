@@ -1,6 +1,23 @@
 #include "KatHubApp.h"
 
 #include <cstring>
+#include <iostream>
+
+static void printUsage(const char *prog)
+{
+    std::cout
+        << "Usage: " << prog << " [OPTIONS]\n"
+        << "\n"
+        << "Options:\n"
+        << "  --server           Run in HTTP server mode (default)\n"
+        << "  --hand             Run in Hand mode (WebEngine GUI)\n"
+        << "  --port <port>      HTTP server port (default: 8080)\n"
+        << "  --ws-port <port>   WebSocket server port (default: 8081)\n"
+        << "  --host <hostname>  Host for Hand mode WebEngine to connect to\n"
+        << "                     (default: localhost)\n"
+        << "  --config <path>    JSON configuration file path\n"
+        << std::endl;
+}
 
 int main(int argc, char *argv[])
 {
@@ -16,6 +33,10 @@ int main(int argc, char *argv[])
         if (std::strcmp(argv[i], "--server") == 0) {
             mode = KatHubApp::Mode::Server;
             break;
+        }
+        if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0) {
+            printUsage(argv[0]);
+            return 0;
         }
     }
 

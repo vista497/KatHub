@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Qt integration
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets WebSockets)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets WebSockets WebEngineWidgets)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)

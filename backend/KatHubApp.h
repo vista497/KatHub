@@ -6,6 +6,7 @@
 #include <string>
 
 class QCoreApplication;
+class QString;
 class PluginLoader;
 class PluginRegistry;
 class HttpServer;
@@ -14,7 +15,7 @@ struct HostApi;
 
 namespace KatHub {
 class SignalHub;
-class WebEngineStub;
+class HandWindow;
 }
 // Composition root for the KatHub application.
 // Owns all major subsystems and wires them together.
@@ -79,6 +80,7 @@ private:
     Mode mode_ = Mode::Server;
     int port_ = 8080;
     int wsPort_ = 8081;
+    QString handHost_{QStringLiteral("localhost")};
     std::unique_ptr<JsonConfigLoader> config_;
 
     // HostApi — shared with plugins.
@@ -91,5 +93,5 @@ private:
     std::unique_ptr<WsServer> wsServer_;
 
     // Subsystems (Hand mode).
-    std::unique_ptr<KatHub::WebEngineStub> webEngineStub_;
+    std::unique_ptr<KatHub::HandWindow> handWindow_;
 };

@@ -8,7 +8,7 @@
 #include "SignalHub.h"
 #include "StaticFileHandler.h"
 #include "StatusHandler.h"
-#include "WebEngineStub.h"
+#include "HandWindow.h"
 #include "WsServer.h"
 #include "WsStatusHandler.h"
 
@@ -109,6 +109,12 @@ void KatHubApp::parseArgs()
                 }
             } else {
                 std::cerr << "--ws-port requires a value" << std::endl;
+            }
+        } else if (arg == QStringLiteral("--host")) {
+            if (i + 1 < args.size()) {
+                handHost_ = args[++i];
+            } else {
+                std::cerr << "--host requires a hostname" << std::endl;
             }
         } else if (arg == QStringLiteral("--config")) {
             if (i + 1 < args.size()) {
@@ -260,17 +266,22 @@ void KatHubApp::init()
         // Wire SignalHub into HostApi for plugin access.
         hostApi_->eventBus = signalHub_.get();
 
-        // Create WebEngineStub widget (hidden by default).
-        webEngineStub_ = std::make_unique<KatHub::WebEngineStub>();
-        webEngineStub_->hide();
+        // Create HandWindow widget — frameless QMainWindow with QWebEngineView.
+        const QString handUrl =
+            QStringLiteral("http://%1:%2").arg(handHost_).arg(port_);
+        handWindow_ = std::make_unique<KatHub::HandWindow>(QUrl(handUrl));
+        handWindow_->show();
+
+        std::cout << "HandWindow connecting to " << handUrl.toStdString()
+                  << std::endl;
 
         // Wire to EventBus: receive navigation commands.
         signalHub_->subscribe(QStringLiteral("navigate.to"),
             [this](const QJsonObject &data) {
                 if (data.contains(QStringLiteral("url"))) {
                     const QString url = data[QStringLiteral("url")].toString();
-                    if (!url.isEmpty() && webEngineStub_) {
-                        webEngineStub_->loadUrl(QUrl(url));
+                    if (!url.isEmpty() && handWindow_) {
+                        handWindow_->loadUrl(QUrl(url));
                     }
                 }
             });
@@ -278,8 +289,8 @@ void KatHubApp::init()
         // Wire to EventBus: receive JavaScript execution commands.
         signalHub_->subscribe(QStringLiteral("webengine.executeJs"),
             [this](const QJsonObject &data) {
-                if (data.contains(QStringLiteral("js")) && webEngineStub_) {
-                    webEngineStub_->executeJavaScript(
+                if (data.contains(QStringLiteral("js")) && handWindow_) {
+                    handWindow_->executeJavaScript(
                         data[QStringLiteral("js")].toString());
                 }
             });
