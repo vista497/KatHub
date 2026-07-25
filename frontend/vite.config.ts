@@ -1,37 +1,44 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { resolve } from 'path'
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [vue()],
+
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src'),
+    },
+  },
 
   server: {
     port: 5173,
     strictPort: false,
 
-    // Proxy /api/* and /ws/* to the C++ backend
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        // WebSocket proxy: upgrade /ws connections as well
-        ws: false,  // /ws handled separately below
+        ws: false,
         secure: false,
       },
       '/ws': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8081',
         changeOrigin: true,
-        ws: true,   // enable WebSocket upgrade for /ws
+        ws: true,
         secure: false,
       },
     },
 
-    // CORS headers for development — allows the Vite dev server
-    // to accept cross-origin requests from the backend and tools.
     cors: {
       origin: '*',
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     },
+  },
+
+  build: {
+    outDir: '../backend/static',
+    emptyOutDir: true,
   },
 })

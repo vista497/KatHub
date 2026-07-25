@@ -14,6 +14,7 @@
 
 #include <QApplication>
 #include <QCoreApplication>
+#include <QDir>
 #include <QJsonObject>
 #include <QString>
 #include <QUrl>
@@ -225,6 +226,21 @@ void KatHubApp::init()
 
         // Set up HttpServer with parsed port.
         std::cout << "Listening on :" << port_ << " (HTTP), :" << wsPort_ << " (WebSocket)" << std::endl;
+
+        // Mount static files (Vue 3 frontend built into backend/static/).
+        // Compute path relative to the executable: build/backend/Debug/ → project root → backend/static/
+        {
+            QString exeDir = QCoreApplication::applicationDirPath();
+            // exeDir = .../build/backend/Debug → go up 3 levels to project root
+            QDir dir(exeDir);
+            dir.cdUp(); // Debug
+            dir.cdUp(); // backend
+            dir.cdUp(); // build
+            QString staticPath = dir.absoluteFilePath(QStringLiteral("backend/static"));
+            httpServer_->mountStaticDir(staticPath.toStdString(), "/");
+            std::cout << "Serving static files from: " << staticPath.toStdString() << std::endl;
+        }
+
         httpServer_->start(port_);
 
         // Emit system.ready event — signals that KatHub has fully started.

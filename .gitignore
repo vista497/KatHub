@@ -1,10 +1,10 @@
 build/
 build_clean/
 build-msvc/
-build*/
 .env
 *.user
 __pycache__/
 node_modules/
 frontend/dist/
+backend/static/
 _vendor/

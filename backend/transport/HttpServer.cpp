@@ -134,6 +134,12 @@ httplib::Server &HttpServer::server()
     return *server_;
 }
 
+void HttpServer::mountStaticDir(const std::string &path,
+                                 const std::string &urlPrefix)
+{
+    server_->set_mount_point(urlPrefix, path);
+}
+
 void HttpServer::installHandlers()
 {
     std::shared_lock lock(handlerMutex_);
