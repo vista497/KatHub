@@ -3,6 +3,14 @@ import { useSidebarStore } from '../../stores/sidebarStore'
 import SidebarSection from './SidebarSection.vue'
 
 const sidebar = useSidebarStore()
+
+const emit = defineEmits<{
+  (e: 'navigate', path: string): void
+}>()
+
+function handleNav(path: string) {
+  emit('navigate', path)
+}
 </script>
 
 <template>
@@ -17,9 +25,9 @@ const sidebar = useSidebarStore()
     <div class="sidebar-content" v-if="!sidebar.collapsed">
       <SidebarSection title="Settings" name="settings">
         <div class="settings-list">
-          <router-link to="/settings/plugins">⚙️ Plugins</router-link>
-          <router-link to="/settings/backends">🔌 Backends</router-link>
-          <router-link to="/settings/theme">🎨 Theme</router-link>
+          <button @click="handleNav('/settings/plugins')">⚙️ Plugins</button>
+          <button @click="handleNav('/settings/backends')">🔌 Backends</button>
+          <button @click="handleNav('/settings/theme')">🎨 Theme</button>
         </div>
       </SidebarSection>
     </div>
@@ -86,16 +94,23 @@ const sidebar = useSidebarStore()
   gap: var(--space-1);
 }
 
-.settings-list a {
+.settings-list button {
+  background: none;
+  border: none;
   color: var(--color-text-secondary);
   text-decoration: none;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-3);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
+  font-family: var(--font-sans);
+  text-align: left;
+  cursor: pointer;
   transition: all var(--transition-fast);
+  width: 100%;
 }
 
-.settings-list a:hover {
+.settings-list button:hover,
+.settings-list button:active {
   background: var(--color-surface-hover);
   color: var(--color-text-primary);
 }

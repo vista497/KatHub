@@ -9,7 +9,8 @@ const graph = useGraphStore()
 
 let simulation: d3.Simulation<any, any> | null = null
 let currentZoom = 1
-const LABEL_ZOOM_THRESHOLD = 2.0
+const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
+const labelZoomThreshold = ref(isTouchDevice ? 1.0 : 2.0)
 
 let dragged = false
 
@@ -86,9 +87,13 @@ function initGraph() {
 
   node.call(drag)
 
-  // Circles
+  // Circles — larger on touch devices
+  const nodeR = (d: any) => {
+    const base = d.type === 'folder' ? 7 : 4
+    return isTouchDevice ? base * 2.5 : base
+  }
   const circles = node.append('circle')
-    .attr('r', (d: any) => d.type === 'folder' ? 7 : 4)
+    .attr('r', nodeR)
     .attr('fill', (d: any) => {
       switch (d.type) {
         case 'folder': return '#ff6b9d'
@@ -107,19 +112,20 @@ function initGraph() {
   }
   updateSelection(graph.selectedNode)
 
-  // Labels
+  // Labels — larger on touch, visible at lower zoom
+  const labelSize = isTouchDevice ? '11px' : '6px'
   const labels = node.append('text')
     .text((d: any) => d.label)
-    .attr('font-size', '6px')
+    .attr('font-size', labelSize)
     .attr('fill', '#ccccee')
-    .attr('dx', (d: any) => d.type === 'folder' ? 10 : 6)
+    .attr('dx', (d: any) => d.type === 'folder' ? (isTouchDevice ? 20 : 10) : (isTouchDevice ? 14 : 6))
     .attr('dy', 3)
     .attr('opacity', 0)
     .attr('pointer-events', 'none')
     .style('text-shadow', '0 0 3px rgba(0,0,0,0.8)')
 
   function updateLabelVisibility() {
-    const show = currentZoom >= LABEL_ZOOM_THRESHOLD
+    const show = currentZoom >= labelZoomThreshold.value
     labels.attr('opacity', show ? 0.8 : 0)
   }
 
@@ -220,8 +226,8 @@ watch(() => graph.selectedNode, (newVal) => {
       {{ graph.selectedNode }}
     </div>
 
-    <div class="zoom-hint" :class="{ hidden: currentZoom >= LABEL_ZOOM_THRESHOLD }">
-      🔍 Zoom in for labels
+    <div class="zoom-hint" :class="{ hidden: currentZoom >= labelZoomThreshold }">
+      🔍 {{ isTouchDevice ? 'Pinch to zoom' : 'Zoom in for labels' }}
     </div>
   </div>
 </template>

@@ -3,13 +3,19 @@ import SidebarPanel from '../components/layout/SidebarPanel.vue'
 import GalaxyGraph from '../components/graph/GalaxyGraph.vue'
 import ChatOverlay from '../components/chat/ChatOverlay.vue'
 import { useGraphStore } from '../stores/graphStore'
+import { useRouter } from 'vue-router'
 
 const graph = useGraphStore()
+const router = useRouter()
+
+function handleSidebarNav(path: string) {
+  router.push(path)
+}
 </script>
 
 <template>
   <div class="desktop-layout">
-    <SidebarPanel class="sidebar" />
+    <SidebarPanel class="sidebar" @navigate="handleSidebarNav" />
     <GalaxyGraph class="graph" />
 
     <!-- Right edge: chat toggle + slide-out panel -->
