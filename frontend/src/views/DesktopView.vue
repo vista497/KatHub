@@ -124,6 +124,9 @@ const graph = useGraphStore()
 
 @media (max-width: 1023px) {
   .desktop-layout {
+    grid-template-columns: 1fr;
+  }
+  .desktop-layout .sidebar {
     display: none;
   }
 }
