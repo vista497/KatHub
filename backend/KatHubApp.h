@@ -81,7 +81,7 @@ private:
     void buildHostApi();
 
     QCoreApplication *app_ = nullptr;
-    Mode mode_ = Mode::Server;
+    Mode mode_ = Mode::Hand;
     int port_ = 8080;
     int wsPort_ = 8081;
     QString handHost_{QStringLiteral("localhost")};

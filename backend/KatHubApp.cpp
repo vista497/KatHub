@@ -23,6 +23,10 @@
 #include "core/CrashHandler.h"
 #include "core/Logger.h"
 
+#include <QProcess>
+#include <QJsonDocument>
+#include <QJsonObject>
+
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
@@ -188,6 +192,26 @@ void KatHubApp::parseArgs()
     }
     if (config_->contains(QStringLiteral("ws.port")) && wsPort_ == 8081) {
         wsPort_ = config_->intValue(QStringLiteral("ws.port"), 8081);
+    }
+
+    // Auto-detect Tailscale hostname if running in Hand mode with default host
+    if (mode_ == Mode::Hand && handHost_ == QStringLiteral("localhost")) {
+        QProcess ts;
+        ts.start(QStringLiteral("tailscale"), {QStringLiteral("status"), QStringLiteral("--json")});
+        if (ts.waitForFinished(3000) && ts.exitCode() == 0) {
+            QJsonParseError err;
+            QJsonDocument doc = QJsonDocument::fromJson(ts.readAllStandardOutput(), &err);
+            if (err.error == QJsonParseError::NoError && doc.isObject()) {
+                QJsonObject self = doc.object().value(QStringLiteral("Self")).toObject();
+                QString hostName = self.value(QStringLiteral("HostName")).toString();
+                if (!hostName.isEmpty()) {
+                    handHost_ = hostName;
+                    std::cout << "Tailscale hostname detected: "
+                              << hostName.toStdString() << std::endl;
+                }
+            }
+        }
+        // Silently keep "localhost" on failure — still works locally
     }
 }
 
