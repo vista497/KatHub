@@ -142,13 +142,15 @@ function initGraph() {
     }
   })
 
-  // Simulation
+  // Simulation — clamps orphans with strong center + radial force
   simulation = d3.forceSimulation(graph.nodes)
     .force('link', d3.forceLink(graph.links).id((d: any) => d.id).distance(40).strength(0.3))
-    .force('charge', d3.forceManyBody().strength(-30))
-    .force('center', d3.forceCenter(width / 2, height / 2).strength(0.4))
+    .force('charge', d3.forceManyBody().strength(-10))
+    .force('center', d3.forceCenter(width / 2, height / 2).strength(1.0))
     .force('collision', d3.forceCollide().radius(8))
-    .alphaDecay(0.015)
+    .force('radial', d3.forceRadial(80, width / 2, height / 2).strength(0.05))
+    .alphaDecay(0.01)
+    .alphaMin(0.001)
     .on('tick', () => {
       link
         .attr('x1', (d: any) => d.source.x)

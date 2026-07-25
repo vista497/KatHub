@@ -8,31 +8,82 @@ export interface ChatMessage {
   timestamp: number
 }
 
-function loadSessions(): { id: string; title: string }[] {
-  try {
-    const raw = localStorage.getItem('kathub-chat-sessions')
-    return raw ? JSON.parse(raw) : []
-  } catch { return [] }
+export interface ChatSession {
+  id: string
+  title: string
+  messages: ChatMessage[]
 }
 
-function saveSessions(sessions: { id: string; title: string }[]) {
-  localStorage.setItem('kathub-chat-sessions', JSON.stringify(sessions))
+const STORAGE_KEY = 'kathub-chat-sessions'
+const DEFAULT_SESSION_ID = 'telegram-default'
+
+function loadSessions(): ChatSession[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch { /* ignore */ }
+  return []
+}
+
+function saveSessions(sessions: ChatSession[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
+  } catch { /* quota exceeded — silently ignore */ }
 }
 
 let messageCounter = 0
 
 export const useChatStore = defineStore('chat', () => {
-  const messages = ref<ChatMessage[]>([])
-  const sessions = ref<{ id: string; title: string }[]>(loadSessions())
+  const sessions = ref<ChatSession[]>(loadSessions())
   const activeSessionId = ref<string | null>(null)
   const panelOpen = ref(false)
-  const activeChat = ref<string | null>(null)
+  const sessionsVisible = ref(true)  // toggle for sessions list
   const sending = ref(false)
-  const messagesLoading = ref(false)
-  const sessionsLoading = ref(false)
+
+  // Ensure default Telegram session exists
+  function ensureDefaultSession() {
+    if (sessions.value.length === 0) {
+      sessions.value.push({
+        id: DEFAULT_SESSION_ID,
+        title: 'Telegram',
+        messages: []
+      })
+      saveSessions(sessions.value)
+    }
+    // Open default if nothing active
+    if (!activeSessionId.value) {
+      activeSessionId.value = DEFAULT_SESSION_ID
+    }
+  }
+  ensureDefaultSession()
+
+  // Current session messages
+  const messages = ref<ChatMessage[]>([])
+
+  function loadActiveMessages() {
+    const s = sessions.value.find(s => s.id === activeSessionId.value)
+    messages.value = s ? [...s.messages] : []
+  }
+  loadActiveMessages()
+
+  function persistCurrentSession() {
+    const s = sessions.value.find(s => s.id === activeSessionId.value)
+    if (s) {
+      s.messages = [...messages.value]
+      // Update title from first user message
+      const firstUser = s.messages.find(m => m.role === 'user')
+      if (firstUser && s.title === 'New chat') {
+        s.title = firstUser.content.slice(0, 30)
+      }
+      saveSessions(sessions.value)
+    }
+  }
 
   async function sendMessage(text: string) {
     if (!text.trim() || sending.value) return
+    if (!activeSessionId.value) {
+      newSession()
+    }
 
     const msg: ChatMessage = {
       id: String(++messageCounter),
@@ -41,6 +92,7 @@ export const useChatStore = defineStore('chat', () => {
       timestamp: Date.now()
     }
     messages.value.push(msg)
+    persistCurrentSession()
     sending.value = true
 
     try {
@@ -57,6 +109,7 @@ export const useChatStore = defineStore('chat', () => {
         content: data.reply || data.error || 'No response',
         timestamp: Date.now()
       })
+      persistCurrentSession()
     } catch (e) {
       messages.value.push({
         id: String(++messageCounter),
@@ -64,6 +117,7 @@ export const useChatStore = defineStore('chat', () => {
         content: 'Error: cannot reach server',
         timestamp: Date.now()
       })
+      persistCurrentSession()
     } finally {
       sending.value = false
     }
@@ -71,35 +125,42 @@ export const useChatStore = defineStore('chat', () => {
 
   function newSession() {
     const id = 'session-' + Date.now()
+    const session: ChatSession = { id, title: 'New chat', messages: [] }
+    sessions.value.unshift(session)
+    saveSessions(sessions.value)
     activeSessionId.value = id
     messages.value = []
-    sessions.value.unshift({ id, title: 'New chat' })
-    saveSessions(sessions.value)
     panelOpen.value = true
-    activeChat.value = id
   }
 
-  function toggleChat(sessionId: string) {
-    activeChat.value = sessionId
+  function openSession(sessionId: string) {
     activeSessionId.value = sessionId
-    if (panelOpen.value && activeChat.value === sessionId) {
-      panelOpen.value = false
-    } else {
-      panelOpen.value = true
+    loadActiveMessages()
+    panelOpen.value = true
+  }
+
+  function deleteSession(sessionId: string) {
+    sessions.value = sessions.value.filter(s => s.id !== sessionId)
+    saveSessions(sessions.value)
+    if (activeSessionId.value === sessionId) {
+      activeSessionId.value = sessions.value[0]?.id || null
+      loadActiveMessages()
     }
   }
 
-  function fetchSessions() {
-    sessions.value = loadSessions()
+  function closePanel() {
+    panelOpen.value = false
   }
 
-  function openSession(id: string) {
-    activeSessionId.value = id
+  function toggleSessions() {
+    sessionsVisible.value = !sessionsVisible.value
   }
 
   return {
-    messages, sessions, activeSessionId, panelOpen, activeChat,
-    sending, messagesLoading, sessionsLoading,
-    sendMessage, newSession, toggleChat, fetchSessions, openSession
+    messages, sessions, activeSessionId, panelOpen, sessionsVisible,
+    sending,
+    sendMessage, newSession, openSession, deleteSession,
+    closePanel, toggleSessions,
+    loadActiveMessages, persistCurrentSession,
   }
 })

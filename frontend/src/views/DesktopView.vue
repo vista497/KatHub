@@ -12,7 +12,7 @@ const graph = useGraphStore()
     <SidebarPanel class="sidebar" />
     <GalaxyGraph class="graph" />
 
-    <!-- Right panel: Chat ALWAYS visible -->
+    <!-- Right edge: chat toggle + slide-out panel -->
     <ChatOverlay class="chat-overlay" />
 
     <!-- File editor modal -->
@@ -34,7 +34,7 @@ const graph = useGraphStore()
 <style scoped>
 .desktop-layout {
   display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr 360px;
+  grid-template-columns: var(--sidebar-width) 1fr 0px;
   grid-template-rows: 100vh;
   overflow: hidden;
   background: var(--color-bg-primary);
@@ -44,7 +44,8 @@ const graph = useGraphStore()
 
 .chat-overlay {
   height: 100vh;
-  overflow: hidden;
+  overflow: visible;
+  /* The panel itself is positioned absolute inside, so it overflows */
 }
 
 /* File editor modal */

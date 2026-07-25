@@ -7,19 +7,53 @@
 #undef DELETE
 #endif
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <map>
 #include <regex>
 #include <sstream>
 
 namespace fs = std::filesystem;
 
-// Helper: convert fs::path to UTF-8 std::string
+// Helper: convert fs::path to UTF-8 std::string with forward slashes
 static std::string toUtf8(const fs::path& p)
 {
     auto u8 = p.u8string();
-    return std::string(reinterpret_cast<const char*>(u8.data()), u8.size());
+    std::string s(reinterpret_cast<const char*>(u8.data()), u8.size());
+    // Normalize backslashes to forward slashes
+    for (auto& ch : s) {
+        if (ch == '\\') ch = '/';
+    }
+    return s;
+}
+
+// Proper JSON string escape — handles ALL control characters
+static std::string jsonEscape(const std::string& s)
+{
+    std::ostringstream out;
+    for (unsigned char c : s) {
+        switch (c) {
+            case '"':  out << "\\\""; break;
+            case '\\': out << "\\\\"; break;
+            case '\b': out << "\\b";  break;
+            case '\f': out << "\\f";  break;
+            case '\n': out << "\\n";  break;
+            case '\r': out << "\\r";  break;
+            case '\t': out << "\\t";  break;
+            default:
+                if (c < 0x20) {
+                    out << "\\u00" << std::hex << std::uppercase
+                        << std::setw(2) << std::setfill('0') << static_cast<int>(c)
+                        << std::dec << std::nouppercase;
+                } else {
+                    out << c;
+                }
+                break;
+        }
+    }
+    return out.str();
 }
 
 // Auto-registration
@@ -59,14 +93,13 @@ void VaultGraphHandler::handle(const char* /*request*/, void* response)
     }
 
     buildGraphJson(json);
-    res->set_content(json.str(), "application/json");
+    res->set_content(json.str(), "application/json; charset=utf-8");
 }
 
 // ---------------------------------------------------------------------------
 std::string VaultGraphHandler::readFile(const std::string& path)
 {
-    // Use wide-string path for proper Unicode support on Windows
-    std::ifstream f(fs::path(fs::u8path(path)));
+    std::ifstream f(fs::path(fs::u8path(path)), std::ios::binary);
     if (!f) return "";
     std::stringstream buf;
     buf << f.rdbuf();
@@ -82,7 +115,7 @@ bool VaultGraphHandler::isMarkdown(const std::string& path)
 // ---------------------------------------------------------------------------
 void VaultGraphHandler::buildGraphJson(std::ostringstream& json)
 {
-    json.str("");  // clear
+    json.str("");
     json.clear();
 
     std::ostringstream nodesJson;
@@ -95,18 +128,6 @@ void VaultGraphHandler::buildGraphJson(std::ostringstream& json)
     int nodeCount = 0;
     int linkCount = 0;
 
-    // Escape backslashes and quotes for JSON
-    auto esc = [](const std::string& s) -> std::string {
-        std::string out;
-        for (char c : s) {
-            if (c == '"') out += "\\\"";
-            else if (c == '\\') out += "\\\\";
-            else out += c;
-        }
-        return out;
-    };
-
-    // Helper to add a node (auto-escapes all fields)
     auto addNode = [&](const std::string& id,
                        const std::string& label,
                        const std::string& type,
@@ -115,13 +136,12 @@ void VaultGraphHandler::buildGraphJson(std::ostringstream& json)
         if (!firstNode) nodesJson << ",";
         firstNode = false;
         ++nodeCount;
-        nodesJson << "{\"id\":\"" << esc(id)
-                  << "\",\"label\":\"" << esc(label)
-                  << "\",\"type\":\"" << esc(type)
-                  << "\",\"folder\":\"" << esc(folder) << "\"}";
+        nodesJson << "{\"id\":\"" << jsonEscape(id)
+                  << "\",\"label\":\"" << jsonEscape(label)
+                  << "\",\"type\":\"" << jsonEscape(type)
+                  << "\",\"folder\":\"" << jsonEscape(folder) << "\"}";
     };
 
-    // Helper to add a link (auto-escapes)
     auto addLink = [&](const std::string& source,
                        const std::string& target,
                        const std::string& type)
@@ -129,28 +149,27 @@ void VaultGraphHandler::buildGraphJson(std::ostringstream& json)
         if (!firstLink) linksJson << ",";
         firstLink = false;
         ++linkCount;
-        linksJson << "{\"source\":\"" << esc(source)
-                  << "\",\"target\":\"" << esc(target)
-                  << "\",\"type\":\"" << esc(type) << "\"}";
+        linksJson << "{\"source\":\"" << jsonEscape(source)
+                  << "\",\"target\":\"" << jsonEscape(target)
+                  << "\",\"type\":\"" << jsonEscape(type) << "\"}";
     };
 
     // 1. Folders as nodes
     for (const auto& entry : fs::directory_iterator(fs::u8path(vaultPath_))) {
         if (!entry.is_directory()) continue;
         std::string folder = toUtf8(entry.path().filename());
-        if (!folder.empty() && folder[0] == '.') continue;  // skip hidden
+        if (!folder.empty() && folder[0] == '.') continue;
 
         addNode(folder, folder, "folder", folder);
     }
 
     // 2. Collect all .md files for path resolution
-    std::map<std::string, std::string> titleToPath;  // stem → relative path
+    std::map<std::string, std::string> titleToPath;
     for (const auto& entry : fs::recursive_directory_iterator(fs::u8path(vaultPath_))) {
         if (!entry.is_regular_file()) continue;
         std::string relPath = toUtf8(fs::relative(entry.path(), fs::u8path(vaultPath_)));
         if (!isMarkdown(relPath)) continue;
         std::string stem = toUtf8(fs::path(fs::u8path(relPath)).stem());
-        // Use the first match (shorter path wins for disambiguation)
         if (titleToPath.find(stem) == titleToPath.end()
             || relPath.size() < titleToPath[stem].size()) {
             titleToPath[stem] = relPath;
@@ -170,10 +189,10 @@ void VaultGraphHandler::buildGraphJson(std::ostringstream& json)
         if (folder == "." || folder.empty()) folder = "root";
 
         std::string title = toUtf8(relPathFs.stem());
-        std::string content = readFile(
-            toUtf8(entry.path()));
+        std::string content = readFile(toUtf8(entry.path()));
 
-        addNode(relPath, esc(title), "note", folder);
+        // Use relPath as id (already forward-slash normalized)
+        addNode(relPath, title, "note", folder);
 
         // Find [[wikilinks]]
         auto begin = std::sregex_iterator(content.begin(), content.end(), wikilinkRe);
@@ -182,18 +201,15 @@ void VaultGraphHandler::buildGraphJson(std::ostringstream& json)
         for (auto it = begin; it != end; ++it) {
             std::string targetRaw = (*it)[1].str();
 
-            // Strip alias: [[page|alias]] → page
             size_t pipe = targetRaw.find('|');
             std::string target = (pipe != std::string::npos)
                 ? targetRaw.substr(0, pipe) : targetRaw;
 
-            // Trim whitespace
             while (!target.empty() && target.front() == ' ') target.erase(0, 1);
             while (!target.empty() && target.back() == ' ') target.pop_back();
 
             if (target.empty()) continue;
 
-            // Look up in title→path map
             auto it2 = titleToPath.find(target);
             if (it2 != titleToPath.end()) {
                 addLink(relPath, it2->second, "wikilink");

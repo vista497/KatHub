@@ -6,93 +6,297 @@ const chat = useChatStore()
 </script>
 
 <template>
-  <div class="chat-overlay">
-    <!-- Sessions list at top -->
-    <div class="sessions-bar">
-      <button class="new-chat-btn" @click="chat.newSession()">+ New Chat</button>
-      <div class="sessions-list">
-        <div
-          v-for="s in chat.sessions"
-          :key="s.id"
-          class="session-chip"
-          :class="{ active: chat.activeSessionId === s.id }"
-          @click="chat.openSession(s.id)"
-        >
-          {{ s.title.slice(0, 20) }}{{ s.title.length > 20 ? '…' : '' }}
+  <div class="chat-overlay" :class="{ open: chat.panelOpen }">
+    <!-- Toggle button (visible when panel closed) -->
+    <button v-if="!chat.panelOpen" class="toggle-btn" @click="chat.panelOpen = true">
+      💬
+    </button>
+
+    <!-- Slide-out panel -->
+    <div class="chat-panel-container">
+      <!-- Sessions sidebar (collapsible) -->
+      <div class="sessions-sidebar" :class="{ hidden: !chat.sessionsVisible }">
+        <div class="sessions-header">
+          <span class="sessions-title">Chats</span>
+          <button class="hide-sessions-btn" @click="chat.toggleSessions()" title="Hide sessions list">
+            ◀
+          </button>
         </div>
-        <div v-if="chat.sessions.length === 0" class="no-sessions">
-          No chats yet
+
+        <button class="new-chat-btn" @click="chat.newSession()">
+          + New Chat
+        </button>
+
+        <div class="sessions-list">
+          <div
+            v-for="s in chat.sessions"
+            :key="s.id"
+            class="session-item"
+            :class="{ active: chat.activeSessionId === s.id }"
+            @click="chat.openSession(s.id)"
+          >
+            <span class="session-title">{{ s.title }}</span>
+            <button
+              v-if="s.id !== 'telegram-default'"
+              class="session-delete"
+              @click.stop="chat.deleteSession(s.id)"
+              title="Delete session"
+            >✕</button>
+          </div>
+          <div v-if="chat.sessions.length === 0" class="no-sessions">
+            No chats yet
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Chat panel -->
-    <ChatPanel />
+      <!-- Sessions toggle when hidden -->
+      <button
+        v-if="!chat.sessionsVisible"
+        class="show-sessions-btn"
+        @click="chat.toggleSessions()"
+        title="Show sessions list"
+      >
+        ▶
+      </button>
+
+      <!-- Chat panel -->
+      <div class="chat-main">
+        <div class="chat-topbar">
+          <span class="chat-session-name">
+            {{ chat.sessions.find(s => s.id === chat.activeSessionId)?.title || 'Chat' }}
+          </span>
+          <button class="close-panel-btn" @click="chat.closePanel()">✕</button>
+        </div>
+        <ChatPanel />
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .chat-overlay {
+  position: relative;
+  height: 100vh;
   display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: #0a0a14;
-  border-left: 1px solid rgba(124, 92, 255, 0.12);
+  align-items: stretch;
 }
 
-.sessions-bar {
-  padding: 8px 10px;
-  border-bottom: 1px solid rgba(124, 92, 255, 0.08);
-  flex-shrink: 0;
-}
-
-.new-chat-btn {
-  width: 100%;
-  padding: 6px;
-  margin-bottom: 6px;
-  background: rgba(124, 92, 255, 0.15);
+/* Toggle button — visible when panel is closed */
+.toggle-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px 0 0 8px;
   border: 1px solid rgba(124, 92, 255, 0.2);
-  border-radius: 6px;
+  background: rgba(124, 92, 255, 0.12);
   color: #ccccee;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 16px;
+  z-index: 50;
+  transition: all 0.2s;
+}
+.toggle-btn:hover {
+  background: rgba(124, 92, 255, 0.3);
+}
+
+/* Slide-out panel container */
+.chat-panel-container {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 480px;
+  max-width: 100vw;
+  background: #0a0a14;
+  border-left: 1px solid rgba(124, 92, 255, 0.15);
+  display: flex;
+  flex-direction: row;
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  z-index: 100;
+}
+
+.chat-overlay.open .chat-panel-container {
+  transform: translateX(0);
+}
+
+/* Sessions sidebar */
+.sessions-sidebar {
+  width: 160px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(124, 92, 255, 0.08);
+  overflow: hidden;
+  transition: width 0.2s, opacity 0.2s;
+}
+
+.sessions-sidebar.hidden {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.sessions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(124, 92, 255, 0.06);
+}
+
+.sessions-title {
+  font-size: 11px;
+  color: #8888aa;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hide-sessions-btn {
+  background: none;
+  border: none;
+  color: #666888;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px;
+}
+.hide-sessions-btn:hover { color: #ccccee; }
+
+.new-chat-btn {
+  margin: 6px;
+  padding: 6px;
+  background: rgba(124, 92, 255, 0.15);
+  border: 1px solid rgba(124, 92, 255, 0.2);
+  border-radius: 5px;
+  color: #ccccee;
+  cursor: pointer;
+  font-size: 11px;
   transition: background 0.15s;
+  text-align: center;
 }
 .new-chat-btn:hover {
   background: rgba(124, 92, 255, 0.3);
 }
 
 .sessions-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  max-height: 60px;
+  flex: 1;
   overflow-y: auto;
+  padding: 2px 4px;
 }
 
-.session-chip {
-  padding: 3px 8px;
-  background: rgba(124, 92, 255, 0.08);
-  border: 1px solid rgba(124, 92, 255, 0.1);
+.session-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
   border-radius: 4px;
-  font-size: 11px;
-  color: #aaaacc;
   cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s;
+  transition: background 0.1s;
+  margin-bottom: 1px;
 }
-.session-chip:hover {
+.session-item:hover {
+  background: rgba(124, 92, 255, 0.1);
+}
+.session-item.active {
   background: rgba(124, 92, 255, 0.2);
 }
-.session-chip.active {
-  background: rgba(124, 92, 255, 0.3);
-  border-color: rgba(124, 92, 255, 0.4);
+
+.session-title {
+  font-size: 11px;
+  color: #aaaacc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.session-item.active .session-title {
   color: #fff;
+}
+
+.session-delete {
+  background: none;
+  border: none;
+  color: #666888;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 4px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.session-item:hover .session-delete {
+  opacity: 1;
+}
+.session-delete:hover {
+  color: #ff6b6b;
 }
 
 .no-sessions {
   font-size: 11px;
   color: #666888;
-  padding: 4px 0;
+  padding: 8px;
+  text-align: center;
+}
+
+/* Show sessions button (when hidden) */
+.show-sessions-btn {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(124, 92, 255, 0.15);
+  border: 1px solid rgba(124, 92, 255, 0.2);
+  border-radius: 0 4px 4px 0;
+  color: #8888aa;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 8px 4px;
+  z-index: 5;
+  transition: all 0.15s;
+}
+.show-sessions-btn:hover {
+  background: rgba(124, 92, 255, 0.3);
+  color: #ccccee;
+}
+
+/* Main chat area */
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chat-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(124, 92, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.chat-session-name {
+  font-size: 12px;
+  color: #8888aa;
+  font-weight: 600;
+}
+
+.close-panel-btn {
+  background: none;
+  border: none;
+  color: #666888;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+.close-panel-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
 }
 </style>
