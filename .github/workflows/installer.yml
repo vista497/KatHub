@@ -101,8 +101,6 @@ jobs:
         run: |
           aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH_AQT `
             -m qtwebsockets qtwebengine qtwebchannel qtpositioning `
-            --autodesktop `
-            --noarchives `
             --outputdir D:\a\KatHub\Qt
 
       - name: Install Inno Setup
