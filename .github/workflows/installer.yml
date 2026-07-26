@@ -1,8 +1,12 @@
 name: Installer
 
 on:
-  push:
+  # Fire automatically after Build & Test succeeds (not on every push).
+  workflow_run:
+    workflows: ["Build & Test"]
+    types: [completed]
     branches: [master, main]
+  push:
     tags: ['v*']
   workflow_dispatch:
 
@@ -15,12 +19,15 @@ env:
 jobs:
   build-backend:
     name: Backend
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: windows-2022
     defaults:
       run:
         shell: pwsh
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -59,6 +66,8 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
 
       - uses: actions/setup-node@v4
         with:
@@ -86,6 +95,8 @@ jobs:
         shell: pwsh
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -184,7 +195,10 @@ jobs:
   github-release:
     name: Release
     needs: package-installer
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    if: |
+      (github.event_name == 'workflow_run' && (github.event.workflow_run.head_branch == 'master' || github.event.workflow_run.head_branch == 'main')) ||
+      (github.event_name != 'workflow_run' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')) ||
+      startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
