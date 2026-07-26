@@ -18,6 +18,9 @@ jobs:
   build-backend:
     name: Backend (Qt/MSBuild)
     runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
     steps:
       - uses: actions/checkout@v4
 
@@ -35,11 +38,17 @@ jobs:
             --autodesktop `
             --outputdir D:\a\KatHub\Qt
 
+      - name: Verify Qt path
+        run: |
+          $qt_root = "D:\a\KatHub\Qt\$env:QT_VERSION\$env:QT_ARCH"
+          echo "QT_ROOT=$qt_root" >> $env:GITHUB_ENV
+          Write-Host "Searching Qt6Config.cmake under: $qt_root"
+          Get-ChildItem -Path $qt_root -Filter "Qt6Config.cmake" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 3 FullName
+
       - name: CMake Configure
         run: |
-          $qt_dir = "D:\a\KatHub\Qt\$env:QT_VERSION\$env:QT_ARCH"
           cmake -B build -G "Visual Studio 17 2022" -A x64 `
-            -DCMAKE_PREFIX_PATH="$qt_dir" `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT" `
             -DCMAKE_BUILD_TYPE=Release
 
       - name: MSBuild
