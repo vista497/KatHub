@@ -137,9 +137,9 @@ jobs:
           Copy-Item "art/kathub-backend.exe" "$staging/kathub-backend.exe"
           Write-Host "Backend copied to staging"
 
-          # Copy frontend
+          # Copy frontend (keep directory structure including assets/)
           if (Test-Path art/static/index.html) {
-            Copy-Item -Recurse "art/static/*" "$staging/static/"
+            Copy-Item -Recurse -Force "art/static/" "$staging/static/"
             Write-Host "Frontend copied to staging/static"
           }
 
