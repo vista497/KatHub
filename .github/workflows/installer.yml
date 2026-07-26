@@ -48,20 +48,14 @@ jobs:
             -DCMAKE_PREFIX_PATH="D:\a\KatHub\Qt\$env:QT_VERSION\$env:QT_ARCH_DIR" `
             -DCMAKE_BUILD_TYPE=Release
 
-      - name: MSBuild
-        run: |
-          $msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
-            -latest -requires Microsoft.Component.MSBuild `
-            -find MSBuild\Current\Bin\MSBuild.exe
-          & $msbuild build/kathub-backend.vcxproj `
-            /p:Configuration=Release /p:Platform=x64 `
-            /m /v:minimal /t:Build
+      - name: Build
+        run: cmake --build build --config Release -j
 
       - name: Upload backend
         uses: actions/upload-artifact@v4
         with:
           name: backend-release
-          path: build/Release/kathub-backend.exe
+          path: build/backend/Release/kathub-backend.exe
 
   build-frontend:
     name: Frontend
