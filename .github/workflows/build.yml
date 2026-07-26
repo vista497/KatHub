@@ -41,7 +41,6 @@ jobs:
 
       - name: Set Qt path
         run: |
-          # aqt uses arch suffix without "win64_" prefix in output dir
           $arch_short = ($env:QT_ARCH -replace '^win64_', '')
           $qt_root = "D:\a\KatHub\Qt\$env:QT_VERSION\$arch_short"
           echo "QT_ROOT=$qt_root" >> $env:GITHUB_ENV
@@ -60,9 +59,16 @@ jobs:
 
       - name: MSBuild
         run: |
+          # Find MSBuild via vswhere (not on PATH in pwsh on windows-2022)
           $msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
             -latest -requires Microsoft.Component.MSBuild `
-            -find MSBuild\Current\Bin\MSBuild.exe
+            -find 'MSBuild\**\Bin\MSBuild.exe' |
+            Select-Object -First 1
+          if (-not $msbuild) {
+            Write-Host "vswhere found nothing, falling back to msbuild..."
+            $msbuild = "msbuild"
+          }
+          Write-Host "MSBuild path: $msbuild"
           & $msbuild build/kathub-backend.vcxproj `
             /p:Configuration=Release /p:Platform=x64 `
             /m /v:minimal /t:Build
