@@ -30,7 +30,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install aqtinstall
-        run: pip install aqtinstall==3.3.*
+        run: pip install aqtinstall==3.2.*
 
       - name: Install Qt + modules
         run: |

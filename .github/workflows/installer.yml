@@ -28,14 +28,12 @@ jobs:
           python-version: '3.12'
 
       - name: Install aqtinstall
-        run: pip install aqtinstall==3.3.*
+        run: pip install aqtinstall==3.2.*
 
       - name: Install Qt
         run: |
           aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH_AQT `
             -m qtwebsockets qtwebengine qtwebchannel qtpositioning `
-            --autodesktop `
-            --noarchives `
             --outputdir D:\a\KatHub\Qt
 
       - name: CMake Configure
@@ -95,7 +93,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install aqtinstall
-        run: pip install aqtinstall==3.3.*
+        run: pip install aqtinstall==3.2.*
 
       - name: Install Qt (for windeployqt)
         run: |
