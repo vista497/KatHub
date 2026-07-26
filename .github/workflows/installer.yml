@@ -123,6 +123,12 @@ jobs:
           name: frontend-dist
           path: staging/static/
 
+      - name: Place backend exe for package_staging.py
+        run: |
+          # package_staging.py expects exe at build/backend/Release/
+          New-Item -ItemType Directory -Force -Path build/backend/Release
+          Copy-Item staging/kathub-backend.exe build/backend/Release/kathub-backend.exe
+
       - name: Build staging (windeployqt + MSVC DLLs)
         run: |
           $env:PYTHONIOENCODING = "utf-8"
