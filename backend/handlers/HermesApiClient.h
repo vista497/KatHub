@@ -21,16 +21,70 @@ public:
     // POST /api/sessions → create new session, returns {"session_id":"..."}
     std::string createSession();
 
-    // ── Chat ────────────────────────────────────────────────────────────
     // POST /api/sessions/{id}/chat → synchronous chat (blocking)
-    // body: {"message": "user text"}
-    // returns: JSON with agent reply
     std::string chat(const std::string& sessionId, const std::string& message);
 
-    // Delete session: DELETE /api/sessions/{id}
+    // DELETE /api/sessions/{id}
     std::string deleteSession(const std::string& sessionId);
 
-    // Health check: GET /health
+    // ── Cron ────────────────────────────────────────────────────────────
+    // GET /api/cron → list all cron jobs
+    std::string listCron();
+
+    // GET /api/cron/{name} → get single cron job
+    std::string getCron(const std::string& name);
+
+    // POST /api/cron → create new cron job; body is JSON config
+    std::string createCron(const std::string& config);
+
+    // DELETE /api/cron/{name}
+    std::string deleteCron(const std::string& name);
+
+    // PATCH /api/cron/{name}/toggle → toggle enabled/disabled
+    std::string toggleCron(const std::string& name);
+
+    // POST /api/cron/{name}/run → run cron job immediately
+    std::string runCron(const std::string& name);
+
+    // ── Skills ──────────────────────────────────────────────────────────
+    // GET /api/skills → list all skills
+    std::string listSkills();
+
+    // GET /api/skills/{name} → get single skill
+    std::string getSkill(const std::string& name);
+
+    // POST /api/skills → create new skill; body is JSON config
+    std::string createSkill(const std::string& config);
+
+    // PUT /api/skills/{name} → update skill; body is JSON config
+    std::string updateSkill(const std::string& name, const std::string& config);
+
+    // DELETE /api/skills/{name}
+    std::string deleteSkill(const std::string& name);
+
+    // ── Models ──────────────────────────────────────────────────────────
+    // GET /api/models → list available models
+    std::string listModels();
+
+    // GET /api/models/{name} → get single model info
+    std::string getModel(const std::string& name);
+
+    // POST /api/models/switch → switch active model; body: {"model":"..."}
+    std::string switchModel(const std::string& modelName);
+
+    // ── System ──────────────────────────────────────────────────────────
+    // GET /api/system/status → system health + stats
+    std::string getSystemStatus();
+
+    // ── Profiles ────────────────────────────────────────────────────────
+    // GET /api/profiles → list all profiles
+    std::string listProfiles();
+
+    // GET /api/profiles/{name}/status → profile status
+    std::string getProfileStatus(const std::string& profileName);
+
+    // ── Health ──────────────────────────────────────────────────────────
+    // GET /health
     bool isAlive();
 
 private:

@@ -11,6 +11,19 @@ function handleSend(text: string) {
   chat.sendMessage(text)
 }
 
+function handleClarifyChoice(choice: string) {
+  chat.sendMessage(choice)
+}
+
+function shouldShowTime(index: number): boolean {
+  const msgs = chat.messages
+  if (index >= msgs.length - 1) return true // last message always shows time
+  const curr = msgs[index].timestamp
+  const next = msgs[index + 1].timestamp
+  // Show time if next message is more than 60 seconds away
+  return Math.abs(next - curr) > 60_000
+}
+
 watch(() => chat.messages.length, async () => {
   await nextTick()
   messagesEnd.value?.scrollIntoView({ behavior: 'smooth' })
@@ -24,15 +37,17 @@ watch(() => chat.messages.length, async () => {
         ↑ Load older messages
       </div>
       <ChatMessage
-        v-for="m in chat.messages"
+        v-for="(m, i) in chat.messages"
         :key="m.id"
         :message="m"
+        :showTime="shouldShowTime(i)"
+        @clarify-choice="handleClarifyChoice"
       />
       <div v-if="chat.sending" class="typing">Thinking...</div>
       <div ref="messagesEnd"></div>
     </div>
 
-    <ChatInput @send="handleSend" :disabled="chat.sending" />
+    <ChatInput @send="handleSend" :sending="chat.sending" />
   </div>
 </template>
 

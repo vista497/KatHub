@@ -95,10 +95,9 @@ bool OpenRouterClient::initialize(const std::string &config)
 
     m_client = std::make_unique<httplib::Client>(schemeHost);
 
-    // Set auth and default headers
+    // Set auth and default headers (NO Content-Type — httplib sets it per-request)
     m_client->set_bearer_token_auth(m_apiKey);
     m_client->set_default_headers({
-        {"Content-Type", "application/json"},
         {"HTTP-Referer", "https://github.com/nousresearch/KatHub"},
         {"X-Title", "KatHub"},
     });

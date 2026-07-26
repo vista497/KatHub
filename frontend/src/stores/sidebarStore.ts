@@ -1,9 +1,35 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+
+const LS_KEY = 'kathub-sidebar-state'
+
+function load(): { collapsed: boolean; expandedSections: string[] } | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch { /* ignore */ }
+  return null
+}
+
+function save(state: { collapsed: boolean; expandedSections: string[] }) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(state)) } catch { /* ignore */ }
+}
 
 export const useSidebarStore = defineStore('sidebar', () => {
-  const collapsed = ref(false)
-  const expandedSections = ref<Set<string>>(new Set(['vault']))
+  const persisted = load()
+
+  const collapsed = ref(persisted?.collapsed ?? false)
+  const expandedSections = ref<Set<string>>(
+    new Set(persisted?.expandedSections || ['vault'])
+  )
+
+  // Persist on change
+  watch([collapsed, expandedSections], () => {
+    save({
+      collapsed: collapsed.value,
+      expandedSections: [...expandedSections.value],
+    })
+  }, { deep: true })
 
   function toggle() {
     collapsed.value = !collapsed.value

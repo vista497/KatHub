@@ -2,6 +2,7 @@
 import { ref, watch, nextTick, computed } from 'vue'
 import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
+import RawLog from './RawLog.vue'
 import { useChatStore } from '../../stores/chatStore'
 
 const chat = useChatStore()
@@ -9,6 +10,7 @@ const messagesEnd = ref<HTMLDivElement>()
 const showSessions = ref(false)
 const sessionPage = ref(10)
 const sessionFilter = ref('')
+const activeTab = ref<'chat' | 'raw'>('chat')
 
 const activeTitle = computed(() =>
   chat.sessions.find(s => s.id === chat.activeSessionId)?.title || 'Chat',
@@ -32,6 +34,10 @@ const hasMore = computed(() => {
 
 function handleSend(text: string) {
   chat.sendMessage(text)
+}
+
+function handleClarifyChoice(choice: string) {
+  chat.sendMessage(choice)
 }
 
 function selectSession(id: string) {
@@ -61,6 +67,10 @@ watch(() => chat.messages.length, async () => {
       <span class="session-name" @click="showSessions = !showSessions">
         {{ activeTitle }}
       </span>
+      <div class="tab-switcher">
+        <button :class="{ active: activeTab === 'chat' }" @click="activeTab = 'chat'">💬 Чат</button>
+        <button :class="{ active: activeTab === 'raw' }" @click="activeTab = 'raw'; chat.toggleRaw()">📡 Лог</button>
+      </div>
       <button class="new-chat-btn" @click="chat.newSession()">+</button>
     </div>
 
@@ -95,16 +105,21 @@ watch(() => chat.messages.length, async () => {
       </div>
     </div>
 
-    <!-- Messages -->
-    <div class="chat-messages">
-      <div v-if="chat.hasMore" class="load-older" @click="chat.loadOlderMessages()">
-        ↑ Load older messages
-      </div>
-      <ChatMessage v-for="m in chat.messages" :key="m.id" :message="m" />
-      <div ref="messagesEnd"></div>
-    </div>
+    <!-- Raw Log tab -->
+    <RawLog v-if="activeTab === 'raw'" />
 
-    <ChatInput @send="handleSend" />
+    <!-- Chat tab -->
+    <template v-if="activeTab === 'chat'">
+      <div class="chat-messages">
+        <div v-if="chat.hasMore" class="load-older" @click="chat.loadOlderMessages()">
+          ↑ Load older messages
+        </div>
+        <ChatMessage v-for="m in chat.messages" :key="m.id" :message="m" @clarify-choice="handleClarifyChoice" />
+        <div ref="messagesEnd"></div>
+      </div>
+
+      <ChatInput @send="handleSend" />
+    </template>
   </div>
 </template>
 
@@ -161,6 +176,37 @@ watch(() => chat.messages.length, async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ── Tab switcher ───────────────────────────── */
+.tab-switcher {
+  display: flex;
+  gap: 2px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.tab-switcher button {
+  background: none;
+  border: none;
+  color: #7777aa;
+  font-size: 11px;
+  font-family: var(--font-sans);
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+
+.tab-switcher button.active {
+  background: rgba(124, 92, 255, 0.2);
+  color: #ccccee;
+}
+
+.tab-switcher button:hover:not(.active) {
+  color: #aaaacc;
 }
 
 /* ── Session dropdown ────────────────────────── */

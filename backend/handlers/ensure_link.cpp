@@ -11,6 +11,11 @@
 #include "PluginListHandler.h"
 #include "ChatHandler.h"
 #include "HermesSessionsHandler.h"
+#include "ModelsHandler.h"
+#include "SystemHandler.h"
+#include "AgentsHandler.h"
+#include "CronHandler.h"
+#include "SkillsHandler.h"
 
 // Forward declare dummy functions to force-link non-QObject handlers.
 namespace {
@@ -24,6 +29,26 @@ namespace {
     }
     void force_link_hermes_sessions() {
         HermesSessionsHandler h;
+        (void)h.route();
+    }
+    void force_link_models() {
+        ModelsHandler h;
+        (void)h.route();
+    }
+    void force_link_system() {
+        SystemHandler h;
+        (void)h.route();
+    }
+    void force_link_agents() {
+        AgentsHandler h;
+        (void)h.route();
+    }
+    void force_link_cron() {
+        CronHandler h;
+        (void)h.route();
+    }
+    void force_link_skills() {
+        SkillsHandler h;
         (void)h.route();
     }
 }
@@ -40,4 +65,9 @@ void force_handlers_link()
     force_link_vaultgraph();
     force_link_chat();
     force_link_hermes_sessions();
+    force_link_models();
+    force_link_system();
+    force_link_agents();
+    force_link_cron();
+    force_link_skills();
 }

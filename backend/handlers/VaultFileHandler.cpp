@@ -55,7 +55,8 @@ static std::string jsonEscape(const std::string& s)
 
 // ---------------------------------------------------------------------------
 void VaultFileHandler::handleWithContext(
-    const char* /*body*/, const char* /*path*/, const char* query, void* response)
+    const char* /*body*/, const char* /*path*/, const char* query, void* response,
+    const char* /*method*/)
 {
     auto* res = static_cast<httplib::Response*>(response);
 

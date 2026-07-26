@@ -49,7 +49,8 @@ void VaultSessionsHandler::handle(const char*, void* response)
 }
 
 void VaultSessionsHandler::handleWithContext(
-    const char* /*body*/, const char* /*path*/, const char* query, void* response)
+    const char* /*body*/, const char* /*path*/, const char* query, void* response,
+    const char* /*method*/)
 {
     auto* res = static_cast<httplib::Response*>(response);
 

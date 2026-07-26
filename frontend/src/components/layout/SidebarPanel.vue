@@ -40,6 +40,21 @@ function handleNav(path: string) {
 
           <router-link v-if="asLinks" to="/settings/theme">🎨 Theme</router-link>
           <button v-else @click="handleNav('/settings/theme')">🎨 Theme</button>
+
+          <router-link v-if="asLinks" to="/settings/cron">⏱️ Cron</router-link>
+          <button v-else @click="handleNav('/settings/cron')">⏱️ Cron</button>
+
+          <router-link v-if="asLinks" to="/settings/skills">🧩 Skills</router-link>
+          <button v-else @click="handleNav('/settings/skills')">🧩 Skills</button>
+
+          <router-link v-if="asLinks" to="/settings/models">🤖 Models</router-link>
+          <button v-else @click="handleNav('/settings/models')">🤖 Models</button>
+
+          <router-link v-if="asLinks" to="/settings/system">🖥️ System</router-link>
+          <button v-else @click="handleNav('/settings/system')">🖥️ System</button>
+
+          <router-link v-if="asLinks" to="/settings/agents">👤 Agents</router-link>
+          <button v-else @click="handleNav('/settings/agents')">👤 Agents</button>
         </div>
       </SidebarSection>
     </div>

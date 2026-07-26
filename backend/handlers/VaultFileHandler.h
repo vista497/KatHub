@@ -18,7 +18,7 @@ public:
     // Extended: uses query string for path param
     void handleWithContext(
         const char* body, const char* path, const char* query,
-        void* response) override;
+        void* response, const char* method = nullptr) override;
 
     void setVaultPath(const std::string& path);
 

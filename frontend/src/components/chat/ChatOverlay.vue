@@ -1,12 +1,27 @@
 <script setup lang="ts">
 import { useChatStore } from '../../stores/chatStore'
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import ChatPanel from './ChatPanel.vue'
+import RawLog from './RawLog.vue'
 
 const chat = useChatStore()
+const activeTab = ref<'chat' | 'raw'>('chat')
 
-// Resize state
-const panelWidth = ref(420)
+// Resize state — persist panel width
+const LS_PANEL_WIDTH = 'kathub-panel-width'
+function loadPanelWidth(): number {
+  try {
+    const v = localStorage.getItem(LS_PANEL_WIDTH)
+    if (v) return parseInt(v, 10) || 420
+  } catch { /* ignore */ }
+  return 420
+}
+function savePanelWidth(w: number) {
+  try { localStorage.setItem(LS_PANEL_WIDTH, String(w)) } catch { /* ignore */ }
+}
+
+const panelWidth = ref(loadPanelWidth())
+watch(panelWidth, savePanelWidth)
 const isResizing = ref(false)
 const windowWidth = ref(window.innerWidth)
 
@@ -116,10 +131,15 @@ onUnmounted(() => {
           <span class="chat-session-name">
             {{ chat.sessions.find(s => s.id === chat.activeSessionId)?.title || 'Chat' }}
           </span>
+          <div class="tab-switcher">
+            <button :class="{ active: activeTab === 'chat' }" @click="activeTab = 'chat'">💬</button>
+            <button :class="{ active: activeTab === 'raw' }" @click="activeTab = 'raw'; chat.toggleRaw()">📡</button>
+          </div>
           <span v-if="chat.sending" class="sending-dot">●</span>
           <button class="close-panel-btn" @click="chat.closePanel()">✕</button>
         </div>
-        <ChatPanel />
+        <RawLog v-if="activeTab === 'raw'" />
+        <ChatPanel v-if="activeTab === 'chat'" />
       </div>
     </div>
   </div>
@@ -398,5 +418,30 @@ onUnmounted(() => {
 .close-panel-btn:hover {
   color: #fff;
   background: rgba(255, 255, 255, 0.08);
+}
+
+.tab-switcher {
+  display: flex;
+  gap: 1px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 4px;
+  padding: 1px;
+}
+.tab-switcher button {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.tab-switcher button.active {
+  background: rgba(124, 92, 255, 0.2);
+  color: #ccc;
+}
+.tab-switcher button:hover:not(.active) {
+  color: #999;
 }
 </style>
