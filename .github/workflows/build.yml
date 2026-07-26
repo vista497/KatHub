@@ -11,14 +11,16 @@ on:
 
 env:
   QT_VERSION: "6.5.3"
-  QT_ARCH_AQT: "win64_msvc2019_64"
-  QT_ARCH_DIR: "msvc2019_64"
+  QT_ARCH: "win64_msvc2019_64"
   NODE_VERSION: "20"
 
 jobs:
   build-backend:
     name: Backend (Qt/MSBuild)
     runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
     steps:
       - uses: actions/checkout@v4
 
@@ -30,17 +32,30 @@ jobs:
       - name: Install aqtinstall
         run: pip install aqtinstall==3.3.*
 
-      - name: Install Qt
+      - name: Install Qt + modules
         run: |
-          aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH_AQT `
+          aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH `
+            -m qtwebsockets qtwebengine qtwebchannel `
             --autodesktop `
-            -m qtwebsockets qtwebengine `
             --outputdir D:\a\KatHub\Qt
+
+      - name: Set Qt path
+        run: |
+          # aqt uses arch suffix without "win64_" prefix in output dir
+          $arch_short = ($env:QT_ARCH -replace '^win64_', '')
+          $qt_root = "D:\a\KatHub\Qt\$env:QT_VERSION\$arch_short"
+          echo "QT_ROOT=$qt_root" >> $env:GITHUB_ENV
+          Write-Host "Qt root: $qt_root"
+          if (-not (Test-Path "$qt_root\lib\cmake\Qt6\Qt6Config.cmake")) {
+            Write-Host "ERROR: Qt6Config.cmake not found!"
+            Get-ChildItem D:\a\KatHub\Qt -Recurse -Directory -Depth 2 | Select-Object FullName | Select-Object -First 15
+            exit 1
+          }
 
       - name: CMake Configure
         run: |
           cmake -B build -G "Visual Studio 17 2022" -A x64 `
-            -DCMAKE_PREFIX_PATH="D:\a\KatHub\Qt\$env:QT_VERSION\$env:QT_ARCH_DIR" `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT" `
             -DCMAKE_BUILD_TYPE=Release
 
       - name: MSBuild
