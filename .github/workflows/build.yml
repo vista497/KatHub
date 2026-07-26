@@ -35,7 +35,7 @@ jobs:
       - name: Install Qt + modules
         run: |
           aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH `
-            -m qtwebsockets qtwebengine qtwebchannel `
+            -m qtwebsockets qtwebengine qtwebchannel qtpositioning `
             --autodesktop `
             --outputdir D:\a\KatHub\Qt
 
