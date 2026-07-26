@@ -60,7 +60,10 @@ jobs:
 
       - name: MSBuild
         run: |
-          msbuild build/kathub-backend.vcxproj `
+          $msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -requires Microsoft.Component.MSBuild `
+            -find MSBuild\Current\Bin\MSBuild.exe
+          & $msbuild build/kathub-backend.vcxproj `
             /p:Configuration=Release /p:Platform=x64 `
             /m /v:minimal /t:Build
 
