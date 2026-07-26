@@ -337,24 +337,31 @@ void KatHubApp::init()
 
         // ── Hermes Agent API client ──────────────────────────────
         // Read API key from .env file (same as Hermes uses).
+        // Try standard Hermes path first, then application directory.
         {
             QString apiKey;
-            QFile envFile(
-                QDir(QDir::homePath())
-                    .absoluteFilePath("AppData/Local/hermes/.env"));
-            if (envFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                QTextStream in(&envFile);
-                while (!in.atEnd()) {
-                    QString line = in.readLine().trimmed();
-                    if (line.startsWith("API_SERVER_KEY=")) {
-                        apiKey = line.mid(15);
-                        break;
+            QStringList envPaths = {
+                QDir(QDir::homePath()).absoluteFilePath("AppData/Local/hermes/.env"),
+                QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(".env"),
+            };
+            for (const auto &p : envPaths) {
+                QFile f(p);
+                if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                    QTextStream in(&f);
+                    while (!in.atEnd()) {
+                        QString line = in.readLine().trimmed();
+                        if (line.startsWith("API_SERVER_KEY=")) {
+                            apiKey = line.mid(15);
+                            break;
+                        }
                     }
+                    f.close();
+                    if (!apiKey.isEmpty()) break;
                 }
-                envFile.close();
             }
             if (apiKey.isEmpty()) {
-                std::cerr << "WARNING: Hermes API key not found in .env" << std::endl;
+                std::cerr << "WARNING: Hermes API key not found in .env (tried: "
+                          << envPaths.join(", ").toStdString() << ")" << std::endl;
             }
             hermesApi_ = std::make_shared<HermesApiClient>(
                 "http://127.0.0.1:8642", apiKey.toStdString());
@@ -500,24 +507,31 @@ void KatHubApp::init()
 
         // ── Hermes Agent API client ──────────────────────────────
         // Read API key from .env file.
+        // Try standard Hermes path first, then application directory.
         {
             QString apiKey;
-            QFile envFile(
-                QDir(QDir::homePath())
-                    .absoluteFilePath("AppData/Local/hermes/.env"));
-            if (envFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                QTextStream in(&envFile);
-                while (!in.atEnd()) {
-                    QString line = in.readLine().trimmed();
-                    if (line.startsWith("API_SERVER_KEY=")) {
-                        apiKey = line.mid(15);
-                        break;
+            QStringList envPaths = {
+                QDir(QDir::homePath()).absoluteFilePath("AppData/Local/hermes/.env"),
+                QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(".env"),
+            };
+            for (const auto &p : envPaths) {
+                QFile f(p);
+                if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                    QTextStream in(&f);
+                    while (!in.atEnd()) {
+                        QString line = in.readLine().trimmed();
+                        if (line.startsWith("API_SERVER_KEY=")) {
+                            apiKey = line.mid(15);
+                            break;
+                        }
                     }
+                    f.close();
+                    if (!apiKey.isEmpty()) break;
                 }
-                envFile.close();
             }
             if (apiKey.isEmpty()) {
-                std::cerr << "WARNING: Hermes API key not found in .env" << std::endl;
+                std::cerr << "WARNING: Hermes API key not found in .env (tried: "
+                          << envPaths.join(", ").toStdString() << ")" << std::endl;
             }
             hermesApi_ = std::make_shared<HermesApiClient>(
                 "http://127.0.0.1:8642", apiKey.toStdString());
