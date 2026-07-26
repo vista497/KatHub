@@ -1,6 +1,7 @@
 ; ============================================================
 ; KatHub — Inno Setup Installer Script
-; Собирает Setup.exe из installer/staging/ (подготовлено CI)
+; Все файлы собираются из staging/ (windeployqt + MSVC DLLs + frontend)
+; Запускать из корня проекта: iscc installer/kathub.iss
 ; ============================================================
 
 #define MyAppName "KatHub"
@@ -8,21 +9,21 @@
 #define MyAppExeName "kathub-backend.exe"
 #define MyAppPublisher "KatHub"
 
-; CI-path: всё уже в installer/staging после windeployqt
-#define StagingDir "installer\staging"
+; Все файлы берутся из installer/staging/ — копия собранного приложения
+#define StagingDir "staging"
 
 [Setup]
 AppId={{KatHub-App-01}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-AppPublisherURL=https://github.com/vista497/kathub
-AppSupportURL=https://github.com/vista497/kathub/issues
-AppUpdatesURL=https://github.com/vista497/kathub/releases
+AppPublisherURL=https://github.com/nousresearch/kathub
+AppSupportURL=https://github.com/nousresearch/kathub/issues
+AppUpdatesURL=https://github.com/nousresearch/kathub/releases
 DefaultDirName={localappdata}\KatHub
 DefaultGroupName=KatHub
 DisableProgramGroupPage=yes
-OutputDir=..\publish
+OutputDir=publish
 OutputBaseFilename=KatHub_Setup_{#MyAppVersion}
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -36,47 +37,62 @@ DisableDirPage=no
 AlwaysShowDirOnReadyPage=yes
 
 [Languages]
-Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
-Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "english";   MessagesFile: "compiler:Default.isl"
+Name: "russian";   MessagesFile: "compiler:Languages\Russian.isl"
 
 [Tasks]
-Name: "desktopicon";  Description: "Создать ярлык на рабочем столе";  GroupDescription: "Дополнительно:"
-Name: "startup";      Description: "Автозапуск при входе в систему";  GroupDescription: "Дополнительно:"; Flags: unchecked
+Name: "desktopicon";  Description: "Создать &ярлык на рабочем столе";  GroupDescription: "Дополнительно:"
+Name: "startup";      Description: "Автозапуск при входе в систему (режим --server)";  GroupDescription: "Дополнительно:"; Flags: unchecked
 
 [Files]
-; Главный exe
-Source: "{#StagingDir}\{#MyAppExeName}";  DestDir: "{app}"; Flags: ignoreversion
+; Главный исполняемый файл
+Source: "{#StagingDir}\kathub-backend.exe";  DestDir: "{app}"; Flags: ignoreversion
 
-; Все DLL (Qt + MSVC) — скопированы windeployqt и скриптом
+; Все Qt DLLs (уже скопированы windeployqt в staging)
 Source: "{#StagingDir}\*.dll";  DestDir: "{app}"; Flags: ignoreversion
 
 ; QtWebEngineProcess.exe
-Source: "{#StagingDir}\QtWebEngineProcess.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#StagingDir}\QtWebEngineProcess.exe";  DestDir: "{app}"; Flags: ignoreversion
 
-; Ресурсы WebEngine (могут отсутствовать с --no-translations)
-Source: "{#StagingDir}\resources\*"; DestDir: "{app}\resources"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
+; Qt Plugins (если есть в staging)
+Source: "{#StagingDir}\platforms\*";      DestDir: "{app}\platforms";           Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StagingDir}\styles\*";          DestDir: "{app}\styles";              Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StagingDir}\imageformats\*";    DestDir: "{app}\imageformats";        Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StagingDir}\iconengines\*";     DestDir: "{app}\iconengines";         Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StagingDir}\sqldrivers\*";      DestDir: "{app}\sqldrivers";          Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StagingDir}\tls\*";             DestDir: "{app}\tls";                 Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Локали WebEngine
-Source: "{#StagingDir}\translations\*"; DestDir: "{app}\translations"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
+; Qt WebEngine resources
+Source: "{#StagingDir}\resources\*";       DestDir: "{app}\resources";           Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Платформенные плагины
-Source: "{#StagingDir}\platforms\*"; DestDir: "{app}\platforms"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "{#StagingDir}\styles\*"; DestDir: "{app}\styles"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "{#StagingDir}\imageformats\*"; DestDir: "{app}\imageformats"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "{#StagingDir}\iconengines\*"; DestDir: "{app}\iconengines"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "{#StagingDir}\sqldrivers\*"; DestDir: "{app}\sqldrivers"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "{#StagingDir}\tls\*"; DestDir: "{app}\tls"; Flags: ignoreversion skipifsourcedoesntexist
+; Qt WebEngine locales
+Source: "{#StagingDir}\translations\*";    DestDir: "{app}\translations";        Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Фронтенд (Vue)
-Source: "{#StagingDir}\static\*"; DestDir: "{app}\static"; Flags: ignoreversion recursesubdirs
+; Frontend static
+Source: "{#StagingDir}\static\*";          DestDir: "{app}\static";              Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Шаблоны промптов
-Source: "{#StagingDir}\templates\*"; DestDir: "{app}\templates"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
+; Prompt templates
+Source: "{#StagingDir}\templates\*";       DestDir: "{app}\templates";           Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
-Name: "{userstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--server"; Tasks: startup
+Name: "{group}\{#MyAppName}";                       Filename: "{app}\{#MyAppExeName}"; Parameters: "--server"
+Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#MyAppName}";                 Filename: "{app}\{#MyAppExeName}"; Parameters: "--server"; Tasks: desktopicon
+
+[Registry]
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "KatHub"; ValueData: """{app}\{#MyAppExeName}"" --server"; Flags: uninsdeletevalue; Tasks: startup
+Root: HKCU; Subkey: "Software\KatHub"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\KatHub"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Запустить KatHub"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--server"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+  begin
+    RegWriteStringValue(HKCU, 'Software\KatHub', 'InstallPath', ExpandConstant('{app}'));
+    RegWriteStringValue(HKCU, 'Software\KatHub', 'Version', '{#MyAppVersion}');
+  end;
+end;
