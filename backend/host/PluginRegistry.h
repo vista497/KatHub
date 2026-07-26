@@ -9,12 +9,19 @@
 class IPlugin;
 class IHttpHandler;
 
+namespace KatHub {
+class SignalHub;
+}
+
 // Thread-safe registry for plugins and HTTP handlers.
 // Read methods acquire a shared_lock; write methods acquire a unique_lock.
 class PluginRegistry
 {
 public:
     static PluginRegistry &instance();
+
+    // Set the SignalHub for publishing lifecycle events.
+    void setSignalHub(KatHub::SignalHub *hub);
 
     // ---- Plugin management ----
 
@@ -42,6 +49,8 @@ private:
     std::unordered_map<std::string, IPlugin *> plugins_;
     std::vector<IHttpHandler *> httpHandlers_;
     std::unordered_set<std::string> draining_;
+
+    KatHub::SignalHub *signalHub_ = nullptr;
 };
 
 // ---------------------------------------------------------------------------

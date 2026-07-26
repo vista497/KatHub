@@ -4,10 +4,12 @@
 
 #include <QWebSocketServer>
 #include <QWebSocket>
+#include <QNetworkProxy>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTimer>
 #include <QDebug>
+#include <iostream>
 
 // ---------------------------------------------------------------------------
 //  Construction / Destruction
@@ -48,8 +50,18 @@ void WsServer::start(quint16 port)
     if (m_server->isListening())
         return;
 
+    // Disable system proxy for WebSocket server.
+    // Without this, QWebSocketServer::listen() fails with
+    // "SOCKSv5 command not supported" on machines with a
+    // system-wide SOCKS proxy configured.
+    QNetworkProxy::setApplicationProxy(QNetworkProxy::NoProxy);
+
+    m_port = port;
+
     if (m_server->listen(QHostAddress::Any, port)) {
-        qDebug() << "WsServer listening on port" << port;
+        // In case port 0 was passed, read back the OS-assigned port.
+        m_port = m_server->serverPort();
+        std::cout << "WsServer listening on port " << m_port << std::endl;
         m_pingTimer->start();
     } else {
         qWarning() << "WsServer failed to listen on port" << port
@@ -78,11 +90,27 @@ void WsServer::stop()
     m_clients.clear();
 
     m_server->close();
+    m_port = 0;
 }
 
 bool WsServer::isRunning() const
 {
     return m_server->isListening();
+}
+
+int WsServer::clientCount() const
+{
+    return m_clients.size();
+}
+
+QStringList WsServer::subscribedTopics() const
+{
+    return m_subscriptions.keys();
+}
+
+quint16 WsServer::port() const
+{
+    return m_port;
 }
 
 QString WsServer::errorString() const
@@ -104,7 +132,7 @@ void WsServer::onNewConnection()
         connect(sock, &QWebSocket::disconnected,
                 this, &WsServer::onSocketDisconnected);
 
-        qDebug() << "WsServer: new client connected (total:" << m_clients.size() << ")";
+        std::cout << "WsServer: new client connected (total:" << m_clients.size() << ")" << std::endl;
     }
 }
 
@@ -141,15 +169,12 @@ void WsServer::onTextMessageReceived(const QString &message)
                     this, &WsServer::onSignalPublished,
                     Qt::UniqueConnection);
 
-            // Register callback with SignalHub (the signal itself is the
-            // primary delivery mechanism; the callback is a safety net).
-            auto callback = [this](const QJsonObject &data) {
-                broadcast(data);
-            };
-            int handle = m_hub->subscribe(topic, callback);
+            // Delivery is handled by the signalPublished → onSignalPublished
+            // connection. The callback is just a no-op placeholder.
+            int handle = m_hub->subscribe(topic, [](const QJsonObject &) {});
             m_subscriptions.insert(topic, handle);
 
-            qDebug() << "WsServer: subscribed to topic" << topic;
+            std::cout << "WsServer: subscribed to topic" << topic.toStdString() << std::endl;
         }
 
         // Ack back to the client.
@@ -158,8 +183,35 @@ void WsServer::onTextMessageReceived(const QString &message)
         ack[QStringLiteral("topic")] = topic;
         sock->sendTextMessage(QJsonDocument(ack).toJson(QJsonDocument::Compact));
 
+    } else if (type == QStringLiteral("publish")) {
+        // Bridge client message to EventBus via SignalHub.
+        const QString topic = obj.value(QStringLiteral("topic")).toString();
+        if (topic.isEmpty()) {
+            qWarning() << "WsServer: publish without topic";
+            return;
+        }
+        QJsonObject data = obj.value(QStringLiteral("data")).toObject();
+        m_hub->publish(topic, data);
+
+        std::cout << "WsServer: client published to topic" << topic.toStdString() << std::endl;
+
+    } else if (type == QStringLiteral("chat")) {
+        // Chat message from UI client → echo back (placeholder for AI integration)
+        const QString text = obj.value(QStringLiteral("message")).toString();
+        if (text.isEmpty()) return;
+
+        std::cout << "WsServer: chat message: " << text.toStdString().substr(0, 80) << std::endl;
+
+        // Echo the message back to ALL clients (including sender)
+        QJsonObject reply;
+        reply[QStringLiteral("type")] = QStringLiteral("chat");
+        reply[QStringLiteral("message")] = text;
+        reply[QStringLiteral("role")] = QStringLiteral("assistant");
+        reply[QStringLiteral("id")] = QString::number(QDateTime::currentMSecsSinceEpoch());
+        broadcast(reply);
+
     } else {
-        qDebug() << "WsServer: unknown message type:" << type;
+        std::cout << "WsServer: unknown message type:" << type.toStdString() << std::endl;
     }
 }
 
@@ -172,7 +224,7 @@ void WsServer::onSocketDisconnected()
     m_clients.removeAll(sock);
     sock->deleteLater();
 
-    qDebug() << "WsServer: client disconnected (total:" << m_clients.size() << ")";
+    std::cout << "WsServer: client disconnected (total:" << m_clients.size() << ")" << std::endl;
 }
 
 void WsServer::onSignalPublished(const QString &topic, const QJsonObject &data)

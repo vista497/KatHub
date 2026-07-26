@@ -47,6 +47,10 @@ public:
     // Access the underlying httplib::Server (e.g. for mount points).
     httplib::Server &server();
 
+    // Mount a directory for static file serving.
+    void mountStaticDir(const std::string &path,
+                         const std::string &urlPrefix = "/");
+
 private:
     void installHandlers();
 

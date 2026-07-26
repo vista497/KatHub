@@ -1,6 +1,17 @@
 build/
+build*/
+**/build*/
+build_clean/
+build-msvc/
 .env
 *.user
 __pycache__/
 node_modules/
 frontend/dist/
+backend/static/
+_vendor/
+publish/
+installer/staging/
+.hermes/
+gh_create.py
+providers.json

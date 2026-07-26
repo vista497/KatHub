@@ -1,0 +1,74 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [master, main, phase-2]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+  pull_request:
+    branches: [master, main]
+
+env:
+  QT_VERSION: "6.7.3"
+  QT_ARCH: "win64_msvc2022_64"
+  NODE_VERSION: "20"
+
+jobs:
+  build-backend:
+    name: Backend (Qt/MSBuild)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: ${{ env.QT_ARCH }}
+          cache: true
+
+      - name: CMake Configure
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: MSBuild
+        run: |
+          msbuild build/kathub-backend.vcxproj `
+            /p:Configuration=Release /p:Platform=x64 `
+            /m /v:minimal /t:Build
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-release
+          path: build/Release/kathub-backend.exe
+
+  build-frontend:
+    name: Frontend (Vue/Vite)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npx vite build
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/

@@ -6,9 +6,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Qt integration
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets WebSockets WebEngineWidgets)
+
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
+
+# MSVC parallel builds: /FS serialises PDB writes to prevent
+# "fatal error C1041: cannot open program database" races.
+if(MSVC)
+    add_compile_options(/FS)
+endif()
 
 # Google Test via FetchContent
 include(FetchContent)

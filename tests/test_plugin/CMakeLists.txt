@@ -13,6 +13,7 @@ add_library(test_plugin SHARED
 
 target_include_directories(test_plugin PRIVATE
     ${CMAKE_SOURCE_DIR}/backend/domain
+    ${CMAKE_SOURCE_DIR}/libs/domain/include
 )
 
 target_compile_definitions(test_plugin PRIVATE

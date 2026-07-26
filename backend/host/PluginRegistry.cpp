@@ -1,6 +1,9 @@
 #include "PluginRegistry.h"
 #include "IPlugin.h"
 #include "IHttpHandler.h"
+#include "SignalHub.h"
+
+#include <QJsonObject>
 
 // ============================================================================
 //  PluginRegistry
@@ -12,17 +15,34 @@ PluginRegistry &PluginRegistry::instance()
     return reg;
 }
 
+void PluginRegistry::setSignalHub(KatHub::SignalHub *hub)
+{
+    signalHub_ = hub;
+}
+
 void PluginRegistry::registerPlugin(IPlugin *plugin)
 {
     if (!plugin) return;
     std::unique_lock lock(mutex_);
     plugins_[plugin->name()] = plugin;
+
+    if (signalHub_) {
+        QJsonObject payload;
+        payload[QStringLiteral("name")] = QString::fromStdString(plugin->name());
+        signalHub_->publish(QStringLiteral("plugin.registered"), payload);
+    }
 }
 
 void PluginRegistry::unregisterPlugin(const std::string &name)
 {
     std::unique_lock lock(mutex_);
     plugins_.erase(name);
+
+    if (signalHub_) {
+        QJsonObject payload;
+        payload[QStringLiteral("name")] = QString::fromStdString(name);
+        signalHub_->publish(QStringLiteral("plugin.unregistered"), payload);
+    }
 }
 
 IPlugin *PluginRegistry::findByName(const std::string &name) const
@@ -49,6 +69,17 @@ void PluginRegistry::registerHandler(IHttpHandler *handler)
     if (!handler) return;
     std::unique_lock lock(mutex_);
     httpHandlers_.push_back(handler);
+
+    if (signalHub_) {
+        QJsonObject payload;
+        payload[QStringLiteral("route")] = QString::fromLatin1(handler->route());
+        payload[QStringLiteral("method")] = QString::fromLatin1(
+            handler->method() == IHttpHandler::HttpMethod::GET    ? "GET" :
+            handler->method() == IHttpHandler::HttpMethod::POST   ? "POST" :
+            handler->method() == IHttpHandler::HttpMethod::PUT    ? "PUT" :
+            handler->method() == IHttpHandler::HttpMethod::DELETE ? "DELETE" : "GET");
+        signalHub_->publish(QStringLiteral("handler.registered"), payload);
+    }
 }
 
 std::vector<IHttpHandler *> PluginRegistry::handlers() const

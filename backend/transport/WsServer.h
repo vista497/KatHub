@@ -38,6 +38,15 @@ public:
     /// Returns true if the server is currently listening.
     bool isRunning() const;
 
+    /// Returns the number of currently connected WebSocket clients.
+    int clientCount() const;
+
+    /// Returns the list of topics currently subscribed to.
+    QStringList subscribedTopics() const;
+
+    /// Returns the port the server is listening on (0 if not started).
+    quint16 port() const;
+
     /// Returns the last error string from the underlying server.
     QString errorString() const;
 
@@ -57,4 +66,5 @@ private:
     QList<QWebSocket *> m_clients;
     QHash<QString, int> m_subscriptions; // topic → SignalHub handle
     QTimer *m_pingTimer = nullptr;
+    quint16 m_port = 0;
 };

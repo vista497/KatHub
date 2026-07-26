@@ -1,10 +1,12 @@
-find_package(Qt6 REQUIRED COMPONENTS Core WebSockets)
-
 add_subdirectory(domain)
+add_subdirectory(config)
+add_subdirectory(ai)
+add_subdirectory(prompts)
 add_subdirectory(host)
 add_subdirectory(core)
 add_subdirectory(transport)
 add_subdirectory(handlers)
+add_subdirectory(ui)
 
 add_executable(kathub-backend
     main.cpp
@@ -15,10 +17,13 @@ target_link_libraries(kathub-backend PRIVATE
     kathub-transport
     kathub-handlers
     kathub-core
+    kathub-config
+    kathub-ui
+    kathub-ai
+    kathub-prompts
     Qt6::Core
+    Qt6::Widgets
 )
-# MSVC discards static lib objects with no referenced symbols.
-# REGISTER_HANDLER uses file-scope globals — force linker to keep them.
 if(MSVC)
     target_link_options(kathub-backend PRIVATE "/WHOLEARCHIVE:kathub-handlers")
 endif()
