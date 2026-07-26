@@ -337,10 +337,11 @@ void KatHubApp::init()
         }
 
         // ── Hermes Agent API client ──────────────────────────────
-        // Read API key from .env file (same as Hermes uses).
+        // Read API key and host from .env file (same as Hermes uses).
         // Try standard Hermes path first, then application directory.
         {
             QString apiKey;
+            QString hermesHost = QStringLiteral("http://127.0.0.1:8642");
             QStringList envPaths = {
                 QDir(QDir::homePath()).absoluteFilePath("AppData/Local/hermes/.env"),
                 QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(".env"),
@@ -353,7 +354,9 @@ void KatHubApp::init()
                         QString line = in.readLine().trimmed();
                         if (line.startsWith("API_SERVER_KEY=")) {
                             apiKey = line.mid(15);
-                            break;
+                        } else if (line.startsWith("HERMES_HOST=")) {
+                            hermesHost = QStringLiteral("http://") + line.mid(12);
+                            std::cout << "Using Hermes host from .env: " << hermesHost.toStdString() << std::endl;
                         }
                     }
                     f.close();
@@ -365,7 +368,7 @@ void KatHubApp::init()
                           << envPaths.join(", ").toStdString() << ")" << std::endl;
             }
             hermesApi_ = std::make_shared<HermesApiClient>(
-                "http://127.0.0.1:8642", apiKey.toStdString());
+                hermesHost.toStdString(), apiKey.toStdString());
             std::cout << "Hermes API client created (alive="
                       << (hermesApi_->isAlive() ? "yes" : "no") << ")" << std::endl;
         }
@@ -507,10 +510,11 @@ void KatHubApp::init()
         httpServer_->setSignalHub(signalHub_.get());
 
         // ── Hermes Agent API client ──────────────────────────────
-        // Read API key from .env file.
+        // Read API key and host from .env file.
         // Try standard Hermes path first, then application directory.
         {
             QString apiKey;
+            QString hermesHost = QStringLiteral("http://127.0.0.1:8642");
             QStringList envPaths = {
                 QDir(QDir::homePath()).absoluteFilePath("AppData/Local/hermes/.env"),
                 QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(".env"),
@@ -523,7 +527,8 @@ void KatHubApp::init()
                         QString line = in.readLine().trimmed();
                         if (line.startsWith("API_SERVER_KEY=")) {
                             apiKey = line.mid(15);
-                            break;
+                        } else if (line.startsWith("HERMES_HOST=")) {
+                            hermesHost = QStringLiteral("http://") + line.mid(12);
                         }
                     }
                     f.close();
@@ -535,7 +540,7 @@ void KatHubApp::init()
                           << envPaths.join(", ").toStdString() << ")" << std::endl;
             }
             hermesApi_ = std::make_shared<HermesApiClient>(
-                "http://127.0.0.1:8642", apiKey.toStdString());
+                hermesHost.toStdString(), apiKey.toStdString());
             std::cout << "Hermes API client created (alive="
                       << (hermesApi_->isAlive() ? "yes" : "no") << ")" << std::endl;
         }
