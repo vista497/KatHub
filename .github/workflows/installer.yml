@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 env:
-  QT_VERSION: "6.7.3"
-  QT_ARCH: "win64_msvc2022_64"
+  QT_VERSION: "6.5.3"
+  QT_ARCH: "win64_msvc2019_64"
   NODE_VERSION: "20"
 
 jobs:
@@ -16,22 +16,32 @@ jobs:
     name: Backend
     runs-on: windows-latest
     outputs:
-      qt-root: ${{ steps.qt.outputs.QT_ROOT_DIR }}
+      qt-root: ${{ steps.qt.outputs.qt_root }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install aqtinstall
+        run: pip install aqtinstall==3.3.*
+
       - name: Install Qt
         id: qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: ${{ env.QT_VERSION }}
-          arch: ${{ env.QT_ARCH }}
-          cache: true
+        run: |
+          aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH `
+            --autodesktop `
+            --outputdir D:\a\KatHub\Qt
+          $qt_dir = "D:\a\KatHub\Qt\$env:QT_VERSION\$env:QT_ARCH"
+          echo "qt_root=$qt_dir" >> $env:GITHUB_OUTPUT
 
       - name: CMake Configure
         run: |
+          $qt_dir = "D:\a\KatHub\Qt\$env:QT_VERSION\$env:QT_ARCH"
           cmake -B build -G "Visual Studio 17 2022" -A x64 `
-            -DCMAKE_PREFIX_PATH="${{ steps.qt.outputs.QT_ROOT_DIR }}" `
+            -DCMAKE_PREFIX_PATH="$qt_dir" `
             -DCMAKE_BUILD_TYPE=Release
 
       - name: MSBuild
@@ -82,16 +92,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install aqtinstall
+        run: pip install aqtinstall==3.3.*
+
+      - name: Install Qt (for windeployqt)
+        run: |
+          aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH `
+            --autodesktop `
+            --outputdir D:\a\KatHub\Qt
+
       - name: Install Inno Setup
         run: |
           winget install --id JRSoftware.InnoSetup --source winget --silent --accept-package-agreements
-
-      - name: Install Qt (for windeployqt)
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: ${{ env.QT_VERSION }}
-          arch: ${{ env.QT_ARCH }}
-          cache: true
 
       - name: Download backend
         uses: actions/download-artifact@v4
@@ -108,9 +125,11 @@ jobs:
       - name: Build staging (windeployqt + MSVC DLLs)
         run: |
           $env:PYTHONIOENCODING = "utf-8"
+          $qt_bin = "D:\a\KatHub\Qt\$env:QT_VERSION\$env:QT_ARCH\bin"
           python installer/package_staging.py `
             --build-dir build `
-            --qt-bin-dir "$env:QT_ROOT_DIR\bin"
+            --qt-bin-dir "$qt_bin" `
+            --release
 
       - name: Build installer (ISCC)
         run: |
