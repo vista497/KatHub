@@ -34,15 +34,6 @@ jobs:
           aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH `
             --autodesktop `
             --outputdir D:\a\KatHub\Qt
-        env:
-          QT_VERSION: ${{ env.QT_VERSION }}
-          QT_ARCH: ${{ env.QT_ARCH }}
-
-      - name: Install MSVC modules
-        run: |
-          aqt install-tool windows desktop tools_vcredist `
-            $env:QT_VERSION msvc2019 `
-            --outputdir D:\a\KatHub\Qt
 
       - name: CMake Configure
         run: |
