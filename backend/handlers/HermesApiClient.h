@@ -87,6 +87,9 @@ public:
     // GET /health
     bool isAlive();
 
+    // Update the API key (useful after first-run setup wizard).
+    void setApiKey(const std::string &key) { apiKey_ = key; }
+
 private:
     std::string request(const std::string& method,
                         const std::string& path,

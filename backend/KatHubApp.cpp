@@ -9,6 +9,7 @@
 #include "StaticFileHandler.h"
 #include "StatusHandler.h"
 #include "HandWindow.h"
+#include "SetupWizard.h"
 #include "VaultGraphHandler.h"
 #include "VaultFileHandler.h"
 #include "VaultSessionsHandler.h"
@@ -650,6 +651,23 @@ void KatHubApp::init()
 
         httpServer_->start(port_);
         std::cout << "Listening on :" << port_ << " (HTTP)" << std::endl;
+
+        // ── First-run setup wizard ───────────────────────────────
+        if (!KatHub::SetupWizard::isAlreadyConfigured()) {
+            KatHub::SetupWizard wizard;
+            wizard.exec();
+            if (!wizard.ok()) {
+                // User closed — assume they don't want to continue.
+                std::cerr << "Setup wizard cancelled, exiting." << std::endl;
+                requestShutdown();
+                return;
+            }
+            // If wizard saved an API key, re-read it into the client.
+            if (!wizard.apiKey().isEmpty()) {
+                hermesApi_->setApiKey(wizard.apiKey().toStdString());
+                std::cout << "Hermes API key updated from setup wizard." << std::endl;
+            }
+        }
 
         // Create HandWindow widget — frameless QMainWindow with QWebEngineView.
         const QString handUrl =
