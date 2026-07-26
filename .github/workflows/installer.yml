@@ -109,8 +109,7 @@ jobs:
             --outputdir D:\a\KatHub\Qt
 
       - name: Install Inno Setup
-        run: |
-          winget install --id JRSoftware.InnoSetup --source winget --silent --accept-package-agreements
+        run: choco install innosetup -y --no-progress
 
       - name: Download backend
         uses: actions/download-artifact@v4
