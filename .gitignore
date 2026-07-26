@@ -15,3 +15,4 @@ installer/staging/
 .hermes/
 gh_create.py
 providers.json
+katmemory/
