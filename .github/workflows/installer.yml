@@ -14,7 +14,7 @@ env:
 jobs:
   build-backend:
     name: Backend
-    runs-on: windows-latest
+    runs-on: windows-2022
     outputs:
       qt-root: ${{ steps.qt.outputs.qt_root }}
     steps:
@@ -85,7 +85,7 @@ jobs:
   package-installer:
     name: Inno Setup Package
     needs: [build-backend, build-frontend]
-    runs-on: windows-latest
+    runs-on: windows-2022
     defaults:
       run:
         shell: pwsh
