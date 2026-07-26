@@ -52,27 +52,27 @@ Source: "{#StagingDir}\kathub-backend.exe";  DestDir: "{app}"; Flags: ignorevers
 Source: "{#StagingDir}\*.dll";  DestDir: "{app}"; Flags: ignoreversion
 
 ; QtWebEngineProcess.exe
-Source: "{#StagingDir}\QtWebEngineProcess.exe";  DestDir: "{app}"; Flags: ignoreversion
+Source: "{#StagingDir}\QtWebEngineProcess.exe";  DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
-; Qt Plugins (если есть в staging)
-Source: "{#StagingDir}\platforms\*";      DestDir: "{app}\platforms";           Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#StagingDir}\styles\*";          DestDir: "{app}\styles";              Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#StagingDir}\imageformats\*";    DestDir: "{app}\imageformats";        Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#StagingDir}\iconengines\*";     DestDir: "{app}\iconengines";         Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#StagingDir}\sqldrivers\*";      DestDir: "{app}\sqldrivers";          Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#StagingDir}\tls\*";             DestDir: "{app}\tls";                 Flags: ignoreversion recursesubdirs createallsubdirs
+; Qt Plugins (skip if windeployqt didn't create them)
+Source: "{#StagingDir}\platforms\*";      DestDir: "{app}\platforms";           Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+Source: "{#StagingDir}\styles\*";          DestDir: "{app}\styles";              Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+Source: "{#StagingDir}\imageformats\*";    DestDir: "{app}\imageformats";        Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+Source: "{#StagingDir}\iconengines\*";     DestDir: "{app}\iconengines";         Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+Source: "{#StagingDir}\sqldrivers\*";      DestDir: "{app}\sqldrivers";          Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+Source: "{#StagingDir}\tls\*";             DestDir: "{app}\tls";                 Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 ; Qt WebEngine resources
-Source: "{#StagingDir}\resources\*";       DestDir: "{app}\resources";           Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StagingDir}\resources\*";       DestDir: "{app}\resources";           Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 ; Qt WebEngine locales
-Source: "{#StagingDir}\translations\*";    DestDir: "{app}\translations";        Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StagingDir}\translations\*";    DestDir: "{app}\translations";        Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 ; Frontend static
-Source: "{#StagingDir}\static\*";          DestDir: "{app}\static";              Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StagingDir}\static\*";          DestDir: "{app}\static";              Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 ; Prompt templates
-Source: "{#StagingDir}\templates\*";       DestDir: "{app}\templates";           Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StagingDir}\templates\*";       DestDir: "{app}\templates";           Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 [Icons]
 Name: "{group}\{#MyAppName}";                       Filename: "{app}\{#MyAppExeName}"; Parameters: "--server"
