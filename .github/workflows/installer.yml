@@ -1,0 +1,145 @@
+name: Installer
+
+on:
+  push:
+    branches: [master, main]
+    tags: ['v*']
+  workflow_dispatch:
+
+env:
+  QT_VERSION: "6.7.3"
+  QT_ARCH: "win64_msvc2022_64"
+  NODE_VERSION: "20"
+
+jobs:
+  build-backend:
+    name: Backend
+    runs-on: windows-latest
+    outputs:
+      qt-root: ${{ steps.qt.outputs.QT_ROOT_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        id: qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: ${{ env.QT_ARCH }}
+          cache: true
+
+      - name: CMake Configure
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_PREFIX_PATH="${{ steps.qt.outputs.QT_ROOT_DIR }}" `
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: MSBuild
+        run: |
+          msbuild build/kathub-backend.vcxproj `
+            /p:Configuration=Release /p:Platform=x64 `
+            /m /v:minimal /t:Build
+
+      - name: Upload backend
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-release
+          path: build/Release/kathub-backend.exe
+
+  build-frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install & Build
+        run: |
+          npm ci
+          npx vite build
+
+      - name: Upload frontend
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+
+  package-installer:
+    name: Inno Setup Package
+    needs: [build-backend, build-frontend]
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Inno Setup
+        run: |
+          winget install --id JRSoftware.InnoSetup --source winget --silent --accept-package-agreements
+
+      - name: Install Qt (for windeployqt)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: ${{ env.QT_ARCH }}
+          cache: true
+
+      - name: Download backend
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-release
+          path: staging/
+
+      - name: Download frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: staging/static/
+
+      - name: Build staging (windeployqt + MSVC DLLs)
+        run: |
+          $env:PYTHONIOENCODING = "utf-8"
+          python installer/package_staging.py `
+            --build-dir build `
+            --qt-bin-dir "$env:QT_ROOT_DIR\bin"
+
+      - name: Build installer (ISCC)
+        run: |
+          $iscc = @(
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          & $iscc installer/kathub.iss
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KatHub-Setup
+          path: installer/publish/KatHub_Setup_*.exe
+
+  github-release:
+    name: Release
+    needs: package-installer
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download installer
+        uses: actions/download-artifact@v4
+        with:
+          name: KatHub-Setup
+          path: release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/KatHub_Setup_*.exe
+          generate_release_notes: true
