@@ -455,16 +455,24 @@ void KatHubApp::init()
         std::cout << "Listening on :" << port_ << " (HTTP), :" << wsPort_ << " (WebSocket)" << std::endl;
 
         // Mount static files (Vue 3 frontend built into backend/static/).
-        // Search upward from the executable until we find backend/static/.
+        // Search upward from the executable until we find backend/static/,
+        // or fall back to static/ next to the exe (installed build).
         {
             QDir dir(QCoreApplication::applicationDirPath());
-            for (int i = 0; i < 8; i++) {
-                if (dir.exists(QStringLiteral("backend/static"))) break;
+            bool found = false;
+            for (int i = 0; i < 5; i++) {
+                if (dir.exists(QStringLiteral("backend/static"))) { found = true; break; }
                 dir.cdUp();
             }
-            QString staticPath = dir.absoluteFilePath(QStringLiteral("backend/static"));
-            httpServer_->mountStaticDir(staticPath.toStdString(), "/");
-            std::cout << "Serving static files from: " << staticPath.toStdString() << std::endl;
+            QString staticPath = found
+                ? dir.absoluteFilePath(QStringLiteral("backend/static"))
+                : QCoreApplication::applicationDirPath() + QStringLiteral("/static");
+            if (QDir(staticPath).exists()) {
+                httpServer_->mountStaticDir(staticPath.toStdString(), "/");
+                std::cout << "Serving static files from: " << staticPath.toStdString() << std::endl;
+            } else {
+                std::cerr << "WARNING: static files not found at " << staticPath.toStdString() << std::endl;
+            }
         }
 
         httpServer_->start(port_);
@@ -606,16 +614,24 @@ void KatHubApp::init()
         }
 
         // Mount static files (Vue 3 frontend).
-        // Search upward from the executable until we find backend/static/.
+        // Search upward from the executable until we find backend/static/,
+        // or fall back to static/ next to the exe (installed build).
         {
             QDir dir(QCoreApplication::applicationDirPath());
-            for (int i = 0; i < 8; i++) {
-                if (dir.exists(QStringLiteral("backend/static"))) break;
+            bool found = false;
+            for (int i = 0; i < 5; i++) {
+                if (dir.exists(QStringLiteral("backend/static"))) { found = true; break; }
                 dir.cdUp();
             }
-            QString staticPath = dir.absoluteFilePath(QStringLiteral("backend/static"));
-            httpServer_->mountStaticDir(staticPath.toStdString(), "/");
-            std::cout << "Serving static files from: " << staticPath.toStdString() << std::endl;
+            QString staticPath = found
+                ? dir.absoluteFilePath(QStringLiteral("backend/static"))
+                : QCoreApplication::applicationDirPath() + QStringLiteral("/static");
+            if (QDir(staticPath).exists()) {
+                httpServer_->mountStaticDir(staticPath.toStdString(), "/");
+                std::cout << "Serving static files from: " << staticPath.toStdString() << std::endl;
+            } else {
+                std::cerr << "WARNING: static files not found at " << staticPath.toStdString() << std::endl;
+            }
         }
 
         httpServer_->start(port_);
