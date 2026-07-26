@@ -16,8 +16,9 @@ jobs:
   build-backend:
     name: Backend
     runs-on: windows-2022
-    outputs:
-      qt-root: ${{ steps.qt-root.outputs.path }}
+    defaults:
+      run:
+        shell: pwsh
     steps:
       - uses: actions/checkout@v4
 
@@ -32,15 +33,9 @@ jobs:
       - name: Install Qt
         run: |
           aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH_AQT `
-            --autodesktop `
             -m qtwebsockets qtwebengine qtwebchannel qtpositioning `
+            --autodesktop `
             --outputdir D:\a\KatHub\Qt
-
-      - name: Set Qt root
-        id: qt-root
-        run: |
-          $p = "D:\a\KatHub\Qt\$env:QT_VERSION\$env:QT_ARCH_DIR"
-          echo "path=$p" >> $env:GITHUB_OUTPUT
 
       - name: CMake Configure
         run: |
@@ -104,39 +99,74 @@ jobs:
       - name: Install Qt (for windeployqt)
         run: |
           aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH_AQT `
-            --autodesktop `
             -m qtwebsockets qtwebengine qtwebchannel qtpositioning `
+            --autodesktop `
             --outputdir D:\a\KatHub\Qt
 
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
 
-      - name: Download backend
+      - name: Download backend artifact
         uses: actions/download-artifact@v4
         with:
           name: backend-release
-          path: staging/
+          path: art/
 
-      - name: Download frontend
+      - name: Download frontend artifact
         uses: actions/download-artifact@v4
         with:
           name: frontend-dist
-          path: staging/static/
+          path: art/static/
 
-      - name: Place backend exe for package_staging.py
+      - name: Prepare staging (copy artifacts)
         run: |
-          # package_staging.py expects exe at build/backend/Release/
-          New-Item -ItemType Directory -Force -Path build/backend/Release
-          Copy-Item staging/kathub-backend.exe build/backend/Release/kathub-backend.exe
+          $staging = "installer/staging"
+          if (Test-Path $staging) { Remove-Item -Recurse -Force $staging }
+          New-Item -ItemType Directory -Force -Path $staging | Out-Null
 
-      - name: Build staging (windeployqt + MSVC DLLs)
+          # Copy backend binary
+          Copy-Item "art/kathub-backend.exe" "$staging/kathub-backend.exe"
+          Write-Host "Backend copied to staging"
+
+          # Copy frontend
+          if (Test-Path art/static/index.html) {
+            Copy-Item -Recurse "art/static/*" "$staging/static/"
+            Write-Host "Frontend copied to staging/static"
+          }
+
+      - name: Run windeployqt + package
         run: |
           $env:PYTHONIOENCODING = "utf-8"
           $qt_bin = "D:\a\KatHub\Qt\$env:QT_VERSION\$env:QT_ARCH_DIR\bin"
-          python installer/package_staging.py `
-            --build-dir build `
-            --qt-bin-dir "$qt_bin" `
-            --release
+
+          # windeployqt directly on the staging binary
+          & "$qt_bin/windeployqt.exe" installer/staging/kathub-backend.exe `
+            --no-translations --no-compiler-runtime
+          Write-Host "windeployqt done"
+
+          # Copy MSVC DLLs from System32
+          $dlls = @(
+            "msvcp140.dll", "msvcp140_1.dll", "msvcp140_2.dll",
+            "msvcp140_atomic_wait.dll", "msvcp140_codecvt_ids.dll",
+            "vcruntime140.dll", "vcruntime140_1.dll", "vcruntime140_threads.dll",
+            "vccorlib140.dll", "concrt140.dll"
+          )
+          foreach ($dll in $dlls) {
+            $src = "C:\Windows\System32\$dll"
+            if (Test-Path $src) {
+              Copy-Item $src "installer/staging/$dll"
+              Write-Host "Copied $dll"
+            } else {
+              Write-Host "WARNING: $dll not found"
+            }
+          }
+
+          # Copy prompt templates if they exist
+          $tpl = "backend/prompts/templates"
+          if (Test-Path $tpl) {
+            Copy-Item -Recurse $tpl "installer/staging/templates/"
+            Write-Host "Templates copied"
+          }
 
       - name: Build installer (ISCC)
         run: |
@@ -144,6 +174,7 @@ jobs:
             "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
             "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          Write-Host "ISCC: $iscc"
           & $iscc installer/kathub.iss
 
       - name: Upload installer artifact
