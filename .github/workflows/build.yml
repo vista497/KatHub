@@ -11,14 +11,16 @@ on:
 
 env:
   QT_VERSION: "6.5.3"
-  QT_ARCH_AQT: "win64_msvc2019_64"
-  QT_ARCH_DIR: "msvc2019_64"
+  QT_ARCH: "win64_msvc2019_64"
   NODE_VERSION: "20"
 
 jobs:
   build-backend:
     name: Backend (Qt/MSBuild)
     runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
     steps:
       - uses: actions/checkout@v4
 
@@ -32,14 +34,33 @@ jobs:
 
       - name: Install Qt
         run: |
-          aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH_AQT `
+          aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH `
             --autodesktop `
             --outputdir D:\a\KatHub\Qt
+
+      - name: Locate Qt
+        run: |
+          echo "=== Listing D:\a\KatHub\Qt ==="
+          Get-ChildItem D:\a\KatHub\Qt -Directory | Select-Object Name
+          echo "=== Listing deeper ==="
+          Get-ChildItem D:\a\KatHub\Qt -Recurse -Directory -Depth 2 | Select-Object FullName | Select-Object -First 20
+          echo "=== Searching for Qt6Config.cmake ==="
+          Get-ChildItem D:\a\KatHub\Qt -Recurse -Filter "Qt6Config.cmake" -ErrorAction SilentlyContinue | Select-Object -First 3 FullName
+          # Try finding it
+          $found = Get-ChildItem D:\a\KatHub\Qt -Recurse -Filter "Qt6Config.cmake" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($found) {
+            $qt_root = Split-Path (Split-Path (Split-Path $found.FullName))
+            echo "QT_ROOT=$qt_root" >> $env:GITHUB_ENV
+            Write-Host "Found Qt at: $qt_root"
+          } else {
+            Write-Host "Qt6Config.cmake NOT FOUND - trying alternative paths..."
+            Get-ChildItem D:\a\KatHub\Qt -Recurse -Directory | Select-Object FullName | Select-Object -First 30
+          }
 
       - name: CMake Configure
         run: |
           cmake -B build -G "Visual Studio 17 2022" -A x64 `
-            -DCMAKE_PREFIX_PATH="D:\a\KatHub\Qt\$env:QT_VERSION\$env:QT_ARCH_DIR" `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT" `
             -DCMAKE_BUILD_TYPE=Release
 
       - name: MSBuild
