@@ -33,6 +33,7 @@ jobs:
         run: |
           aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH_AQT `
             --autodesktop `
+            -m qtwebsockets qtwebengine `
             --outputdir D:\a\KatHub\Qt
 
       - name: Set Qt root
@@ -107,6 +108,7 @@ jobs:
         run: |
           aqt install-qt windows desktop $env:QT_VERSION $env:QT_ARCH_AQT `
             --autodesktop `
+            -m qtwebsockets qtwebengine `
             --outputdir D:\a\KatHub\Qt
 
       - name: Install Inno Setup
