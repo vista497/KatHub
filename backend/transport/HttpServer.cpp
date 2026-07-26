@@ -21,6 +21,8 @@ static const char *methodStr(IHttpHandler::HttpMethod m)
     case IHttpHandler::HttpMethod::POST:   return "POST";
     case IHttpHandler::HttpMethod::PUT:    return "PUT";
     case IHttpHandler::HttpMethod::DELETE: return "DELETE";
+    case IHttpHandler::HttpMethod::PATCH:  return "PATCH";
+    case IHttpHandler::HttpMethod::ALL:    return "ALL";
     }
     return "GET";
 }
@@ -104,7 +106,8 @@ void HttpServer::registerHandler(IHttpHandler *handler)
                 req.body.c_str(),
                 req.path.c_str(),
                 queryStr,
-                &res);
+                &res,
+                req.method.c_str());
 
             // Publish event to SignalHub after each request
             if (signalHub_) {
@@ -114,23 +117,40 @@ void HttpServer::registerHandler(IHttpHandler *handler)
             }
         };
 
-        switch (method) {
-        case IHttpHandler::HttpMethod::GET:
+        if (method == IHttpHandler::HttpMethod::ALL) {
             server_->Get(route, httplibHandler);
             server_->Get(std::string(route) + "/(.*)", httplibHandler);
-            break;
-        case IHttpHandler::HttpMethod::POST:
             server_->Post(route, httplibHandler);
             server_->Post(std::string(route) + "/(.*)", httplibHandler);
-            break;
-        case IHttpHandler::HttpMethod::PUT:
             server_->Put(route, httplibHandler);
             server_->Put(std::string(route) + "/(.*)", httplibHandler);
-            break;
-        case IHttpHandler::HttpMethod::DELETE:
             server_->Delete(route, httplibHandler);
             server_->Delete(std::string(route) + "/(.*)", httplibHandler);
-            break;
+            server_->Patch(route, httplibHandler);
+            server_->Patch(std::string(route) + "/(.*)", httplibHandler);
+        } else {
+            switch (method) {
+            case IHttpHandler::HttpMethod::GET:
+                server_->Get(route, httplibHandler);
+                server_->Get(std::string(route) + "/(.*)", httplibHandler);
+                break;
+            case IHttpHandler::HttpMethod::POST:
+                server_->Post(route, httplibHandler);
+                server_->Post(std::string(route) + "/(.*)", httplibHandler);
+                break;
+            case IHttpHandler::HttpMethod::PUT:
+                server_->Put(route, httplibHandler);
+                server_->Put(std::string(route) + "/(.*)", httplibHandler);
+                break;
+            case IHttpHandler::HttpMethod::DELETE:
+                server_->Delete(route, httplibHandler);
+                server_->Delete(std::string(route) + "/(.*)", httplibHandler);
+                break;
+            case IHttpHandler::HttpMethod::PATCH:
+                server_->Patch(route, httplibHandler);
+                server_->Patch(std::string(route) + "/(.*)", httplibHandler);
+                break;
+            }
         }
     }
 }
@@ -175,7 +195,7 @@ void HttpServer::installHandlers()
                 queryStr = qs.c_str();
             }
             handler->handleWithContext(
-                req.body.c_str(), req.path.c_str(), queryStr, &res);
+                req.body.c_str(), req.path.c_str(), queryStr, &res, req.method.c_str());
 
             // Publish event to SignalHub after each request
             if (signalHub_) {
@@ -185,23 +205,40 @@ void HttpServer::installHandlers()
             }
         };
 
-        switch (method) {
-        case IHttpHandler::HttpMethod::GET:
+        if (method == IHttpHandler::HttpMethod::ALL) {
             server_->Get(route, httplibHandler);
             server_->Get(std::string(route) + "/(.*)", httplibHandler);
-            break;
-        case IHttpHandler::HttpMethod::POST:
             server_->Post(route, httplibHandler);
             server_->Post(std::string(route) + "/(.*)", httplibHandler);
-            break;
-        case IHttpHandler::HttpMethod::PUT:
             server_->Put(route, httplibHandler);
             server_->Put(std::string(route) + "/(.*)", httplibHandler);
-            break;
-        case IHttpHandler::HttpMethod::DELETE:
             server_->Delete(route, httplibHandler);
             server_->Delete(std::string(route) + "/(.*)", httplibHandler);
-            break;
+            server_->Patch(route, httplibHandler);
+            server_->Patch(std::string(route) + "/(.*)", httplibHandler);
+        } else {
+            switch (method) {
+            case IHttpHandler::HttpMethod::GET:
+                server_->Get(route, httplibHandler);
+                server_->Get(std::string(route) + "/(.*)", httplibHandler);
+                break;
+            case IHttpHandler::HttpMethod::POST:
+                server_->Post(route, httplibHandler);
+                server_->Post(std::string(route) + "/(.*)", httplibHandler);
+                break;
+            case IHttpHandler::HttpMethod::PUT:
+                server_->Put(route, httplibHandler);
+                server_->Put(std::string(route) + "/(.*)", httplibHandler);
+                break;
+            case IHttpHandler::HttpMethod::DELETE:
+                server_->Delete(route, httplibHandler);
+                server_->Delete(std::string(route) + "/(.*)", httplibHandler);
+                break;
+            case IHttpHandler::HttpMethod::PATCH:
+                server_->Patch(route, httplibHandler);
+                server_->Patch(std::string(route) + "/(.*)", httplibHandler);
+                break;
+            }
         }
     }
 }

@@ -21,6 +21,7 @@ class AIController;
 class PromptManager;
 }
 class HermesApiClient;
+class HermesCli;
 
 // Composition root for the KatHub application.
 // Owns all major subsystems and wires them together.
@@ -105,6 +106,8 @@ private:
 
     // Hermes Agent API client (shared across handlers).
     std::shared_ptr<HermesApiClient> hermesApi_;
+    // Hermes CLI client (for chat + sessions — direct state.db access).
+    std::shared_ptr<HermesCli> hermesCli_;
 
     // Watchdog state.
     std::unique_ptr<QProcess> watchdogChild_;

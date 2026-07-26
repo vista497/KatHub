@@ -11,7 +11,9 @@ public:
         GET,
         POST,
         PUT,
-        DELETE
+        DELETE,
+        PATCH,
+        ALL  // Register for all HTTP methods — handler routes internally
     };
 
     virtual ~IHttpHandler() = default;
@@ -29,15 +31,18 @@ public:
 
     // Extended handle with full request context.
     // Default implementation delegates to handle(body, response) for backward compat.
-    // Override this if you need URL path or query parameters.
+    // Override this if you need URL path, query parameters, or HTTP method.
+    // method — HTTP method string ("GET", "POST", "PUT", "DELETE", "PATCH"), or nullptr
     virtual void handleWithContext(
         const char* body,
         const char* path,     // Full request path (e.g. "/api/vault/file/foo.md")
         const char* query,    // Query string (e.g. "path=foo.md"), or nullptr
-        void* response)
+        void* response,
+        const char* method = nullptr)  // HTTP method string, or nullptr
     {
         (void)path;
         (void)query;
+        (void)method;
         handle(body, response);
     }
 };

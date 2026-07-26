@@ -17,6 +17,12 @@
 #include "ChatHandler.h"
 #include "HermesApiClient.h"
 #include "HermesSessionsHandler.h"
+#include "ModelsHandler.h"
+#include "SystemHandler.h"
+#include "AgentsHandler.h"
+#include "CronHandler.h"
+#include "SkillsHandler.h"
+#include "KanbanHandler.h"
 #include "httplib.h"
 #include "ai/AIController.h"
 #include "ai/Conversation.h"
@@ -341,7 +347,7 @@ void KatHubApp::init()
                 while (!in.atEnd()) {
                     QString line = in.readLine().trimmed();
                     if (line.startsWith("API_SERVER_KEY=")) {
-                        apiKey = line.mid(15);  // 15 = len("API_SERVER_KEY=")
+                        apiKey = line.mid(15);
                         break;
                     }
                 }
@@ -364,7 +370,7 @@ void KatHubApp::init()
             std::cout << "Registered handler: " << hsh->route() << std::endl;
         }
 
-        // DELETE route for session removal — uses httplib directly
+        // DELETE route for session removal — uses API
         {
             auto api = hermesApi_;
             httpServer_->server().Delete(R"(/api/hermes/sessions/(.*))",
@@ -373,6 +379,51 @@ void KatHubApp::init()
                     std::string resp = api->deleteSession(sid);
                     res.set_content(resp, "application/json; charset=utf-8");
                 });
+        }
+
+        // ── Models handler ─────────────────────────────────────
+        {
+            auto *mh = new ModelsHandler();
+            httpServer_->registerHandler(mh);
+            std::cout << "Registered handler: " << mh->route() << std::endl;
+        }
+
+        // ── System handler ─────────────────────────────────────
+        {
+            auto *sh = new SystemHandler();
+            sh->setApiClient(hermesApi_);
+            sh->setStartTime(httpServer_->startTime());
+            sh->setPorts(port_, wsPort_);
+            httpServer_->registerHandler(sh);
+            std::cout << "Registered handler: " << sh->route() << std::endl;
+        }
+
+        // ── Agents handler ─────────────────────────────────────
+        {
+            auto *ah = new AgentsHandler();
+            httpServer_->registerHandler(ah);
+            std::cout << "Registered handler: " << ah->route() << std::endl;
+        }
+
+        // ── Cron handler ───────────────────────────────────────
+        {
+            auto *ch = new CronHandler();
+            httpServer_->registerHandler(ch);
+            std::cout << "Registered handler: " << ch->route() << std::endl;
+        }
+
+        // ── Skills handler ─────────────────────────────────────
+        {
+            auto *skh = new SkillsHandler();
+            httpServer_->registerHandler(skh);
+            std::cout << "Registered handler: " << skh->route() << std::endl;
+        }
+
+        // ── Kanban handler ─────────────────────────────────────
+        {
+            auto *kh = new KanbanHandler();
+            httpServer_->registerHandler(kh);
+            std::cout << "Registered handler: " << kh->route() << std::endl;
         }
 
         const auto &staticHandlers = StaticHandlerRegistry::instance().handlers();
@@ -385,7 +436,7 @@ void KatHubApp::init()
             if (auto *wsh = dynamic_cast<WsStatusHandler *>(handler)) {
                 wsh->setWsServer(wsServer_.get());
             }
-            // If the handler is a ChatHandler, inject Hermes API client.
+            // If the handler is a ChatHandler, inject Hermes CLI.
             if (auto *ch = dynamic_cast<ChatHandler *>(handler)) {
                 ch->setApiClient(hermesApi_);
             }
@@ -404,14 +455,13 @@ void KatHubApp::init()
         std::cout << "Listening on :" << port_ << " (HTTP), :" << wsPort_ << " (WebSocket)" << std::endl;
 
         // Mount static files (Vue 3 frontend built into backend/static/).
-        // Compute path relative to the executable: build/backend/Debug/ → project root → backend/static/
+        // Search upward from the executable until we find backend/static/.
         {
-            QString exeDir = QCoreApplication::applicationDirPath();
-            // exeDir = .../build/backend/Debug → go up 3 levels to project root
-            QDir dir(exeDir);
-            dir.cdUp(); // Debug
-            dir.cdUp(); // backend
-            dir.cdUp(); // build
+            QDir dir(QCoreApplication::applicationDirPath());
+            for (int i = 0; i < 8; i++) {
+                if (dir.exists(QStringLiteral("backend/static"))) break;
+                dir.cdUp();
+            }
             QString staticPath = dir.absoluteFilePath(QStringLiteral("backend/static"));
             httpServer_->mountStaticDir(staticPath.toStdString(), "/");
             std::cout << "Serving static files from: " << staticPath.toStdString() << std::endl;
@@ -486,6 +536,45 @@ void KatHubApp::init()
                 });
         }
 
+        // ── Models handler ─────────────────────────────────────
+        {
+            auto *mh = new ModelsHandler();
+            httpServer_->registerHandler(mh);
+        }
+
+        // ── System handler ─────────────────────────────────────
+        {
+            auto *sh = new SystemHandler();
+            sh->setApiClient(hermesApi_);
+            sh->setStartTime(httpServer_->startTime());
+            sh->setPorts(port_, wsPort_);
+            httpServer_->registerHandler(sh);
+        }
+
+        // ── Agents handler ─────────────────────────────────────
+        {
+            auto *ah = new AgentsHandler();
+            httpServer_->registerHandler(ah);
+        }
+
+        // ── Cron handler ───────────────────────────────────────
+        {
+            auto *ch = new CronHandler();
+            httpServer_->registerHandler(ch);
+        }
+
+        // ── Skills handler ─────────────────────────────────────
+        {
+            auto *skh = new SkillsHandler();
+            httpServer_->registerHandler(skh);
+        }
+
+        // ── Kanban handler ─────────────────────────────────────
+        {
+            auto *kh = new KanbanHandler();
+            httpServer_->registerHandler(kh);
+        }
+
         // Register built-in handlers (StatusHandler, StaticFileHandler, etc.).
         // Directly instantiate VaultGraphHandler (no QObject — REGISTER_HANDLER
         // may not force-link under MSVC).
@@ -517,12 +606,13 @@ void KatHubApp::init()
         }
 
         // Mount static files (Vue 3 frontend).
+        // Search upward from the executable until we find backend/static/.
         {
-            QString exeDir = QCoreApplication::applicationDirPath();
-            QDir dir(exeDir);
-            dir.cdUp(); // Debug
-            dir.cdUp(); // backend
-            dir.cdUp(); // build
+            QDir dir(QCoreApplication::applicationDirPath());
+            for (int i = 0; i < 8; i++) {
+                if (dir.exists(QStringLiteral("backend/static"))) break;
+                dir.cdUp();
+            }
             QString staticPath = dir.absoluteFilePath(QStringLiteral("backend/static"));
             httpServer_->mountStaticDir(staticPath.toStdString(), "/");
             std::cout << "Serving static files from: " << staticPath.toStdString() << std::endl;
