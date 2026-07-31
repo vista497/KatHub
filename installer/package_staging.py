@@ -208,14 +208,10 @@ def main():
     # ---------------------------------------------------------------
     banner("Copying frontend static (Vue)")
     # CI: dist is in staging/static/ (downloaded artifact)
-    # Local: backend/static → symlink → frontend/dist
+    # Local: vite build собирает СРАЗУ в backend/static (см. frontend/vite.config.ts)
     ci_static = os.path.join(staging_dir, "static", "index.html")
     if os.path.isfile(ci_static):
         print("  Using CI artifact (already in staging/static/)")
-        # Remove empty static dir from backend symlink
-        backend_static = os.path.join(ROOT, "backend", "static")
-        if not os.path.isfile(os.path.join(backend_static, "index.html")):
-            pass  # symlink won't have index.html yet, CI artifact takes priority
     else:
         src_static = os.path.join(ROOT, "backend", "static")
         dst_static = os.path.join(staging_dir, "static")
@@ -233,7 +229,18 @@ def main():
         print(f"  SKIP: templates dir not found ({src_tpl})")
 
     # ---------------------------------------------------------------
-    # 6. Copy MSVC runtime DLLs from System32
+    # 6. Copy helper scripts (kanban_move.py — drag&drop status change)
+    # ---------------------------------------------------------------
+    banner("Copying helper scripts")
+    src_scripts = os.path.join(ROOT, "backend", "scripts")
+    dst_scripts = os.path.join(staging_dir, "scripts")
+    if os.path.isdir(src_scripts):
+        copy_tree(src_scripts, dst_scripts, "scripts/")
+    else:
+        print(f"  SKIP: scripts dir not found ({src_scripts})")
+
+    # ---------------------------------------------------------------
+    # 7. Copy MSVC runtime DLLs from System32
     # ---------------------------------------------------------------
     banner("Copying MSVC runtime DLLs")
     for dll in MSVC_DLLS:

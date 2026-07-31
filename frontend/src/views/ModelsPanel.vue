@@ -114,10 +114,10 @@ onMounted(async () => {
 
 <template>
   <div class="models-panel">
-    <h2 class="panel-title">🔄 Models</h2>
+    <h2 class="panel-title">🔄 Модели</h2>
 
     <!-- Loading -->
-    <div v-if="loading" class="state-msg">Loading models...</div>
+    <div v-if="loading" class="state-msg">Загрузка моделей…</div>
 
     <!-- Empty -->
     <div v-else-if="models.length === 0" class="state-msg muted">
@@ -128,12 +128,12 @@ onMounted(async () => {
     <template v-else>
       <!-- Provider selector -->
       <label class="field">
-        <span class="label-text">Provider</span>
+        <span class="label-text">Провайдер</span>
         <select
           v-model="selectedProvider"
           class="select"
         >
-          <option :value="null">All providers</option>
+          <option :value="null">Все провайдеры</option>
           <option
             v-for="p in providers"
             :key="p"
@@ -144,12 +144,12 @@ onMounted(async () => {
 
       <!-- Model selector -->
       <label class="field">
-        <span class="label-text">Model</span>
+        <span class="label-text">Модель</span>
         <select
           v-model="selectedModel"
           class="select"
         >
-          <option :value="null">Select model...</option>
+          <option :value="null">Выберите модель…</option>
           <option
             v-for="m in filteredModels"
             :key="`${m.provider}/${m.name}`"

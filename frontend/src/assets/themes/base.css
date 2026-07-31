@@ -3,7 +3,7 @@
 
 :root {
   /* Core backgrounds */
-  --color-bg-primary: #0a0a1a;
+  --color-bg-primary: #15151F;
   --color-bg-secondary: #12122a;
   --color-bg-tertiary: #1a1a3e;
   --color-surface: rgba(255, 255, 255, 0.05);
@@ -48,6 +48,7 @@
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
   --font-size-base: 1rem;
   --font-size-lg: 1.125rem;
   --font-size-xl: 1.5rem;
@@ -65,6 +66,37 @@
   --radius-md: 10px;
   --radius-lg: 16px;
   --radius-full: 9999px;
+
+  /* ═══════ Hermes Agent OS design tokens ═══════ */
+  --bg-base: #15151F;
+  --bg-glass: rgba(31, 31, 43, 0.55);
+  --bg-glass-solid: #1F1F2B;
+  --border-glass: rgba(255, 255, 255, 0.1);
+  --text-primary: #F4F4F8;
+  --text-muted: #8A8A9B;
+
+  --brand-violet: #8B5CF6;
+  --brand-violet-glow: #A78BFA;
+  --brand-cyan: #7DD3FC;
+  --brand-mint: #5EE2B5;
+  --brand-amber: #F5B544;
+  --brand-red: #F26D6D;
+  --brand-pink: #F472B6;
+  --brand-gold: #FBBF24;
+  --brand-magenta: #E879F9;
+  --brand-teal: #2DD4BF;
+
+  --status-active: #5EE2B5;
+  --status-idle: #F5B544;
+  --status-dormant: #6B6B7B;
+
+  --blur-heavy: blur(16px);
+  --letter-spacing-wide: 0.05em;
+
+  --font-display: 'Inter Tight', 'Inter', system-ui, sans-serif;
+
+  --space-5: 24px;
+  --radius-xl: 18px;
 }
 
 /* Global reset */

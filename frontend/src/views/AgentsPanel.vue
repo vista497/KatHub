@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useAgentChatStore } from '../stores/agentChatStore'
+
+const agentChat = useAgentChatStore()
 
 // ── Types ────────────────────────────────────────────────────────
 interface AgentInfo {
@@ -79,9 +82,9 @@ onUnmounted(() => {
 
 <template>
   <div class="agents-panel">
-    <h2 class="panel-title">🤖 Agents</h2>
+    <h2 class="panel-title">🤖 Агенты</h2>
 
-    <div v-if="loading && agents.length === 0" class="state-msg">Loading agents...</div>
+    <div v-if="loading && agents.length === 0" class="state-msg">Загрузка агентов…</div>
     <div v-else-if="error && agents.length === 0" class="state-msg error-text">{{ error }}</div>
 
     <div v-if="agents.length === 0 && !loading" class="state-msg muted">
@@ -101,19 +104,28 @@ onUnmounted(() => {
         <div class="agent-info">
           <span class="agent-name">{{ agent.name }}</span>
           <span class="agent-model" v-if="agent.model">{{ agent.model }}</span>
-          <span class="agent-model muted" v-else>no model</span>
+          <span class="agent-model muted" v-else>нет модели</span>
         </div>
       </div>
 
-      <!-- Toggle button -->
-      <button
-        class="btn-toggle"
-        :class="{ on: agent.active }"
-        :disabled="isToggling(agent.name)"
-        @click="toggleAgent(agent.name)"
-      >
-        {{ isToggling(agent.name) ? '...' : (agent.active ? 'Stop' : 'Start') }}
-      </button>
+      <!-- Actions: chat + toggle -->
+      <div class="agent-actions">
+        <button
+          class="btn-chat"
+          :title="`Открыть чат с ${agent.name}`"
+          @click="agentChat.openChat(agent.name)"
+        >
+          💬
+        </button>
+        <button
+          class="btn-toggle"
+          :class="{ on: agent.active }"
+          :disabled="isToggling(agent.name)"
+          @click="toggleAgent(agent.name)"
+        >
+          {{ isToggling(agent.name) ? '...' : (agent.active ? 'Stop' : 'Start') }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -214,6 +226,34 @@ onUnmounted(() => {
 .agent-model.muted {
   color: var(--color-text-muted);
   font-style: italic;
+}
+
+.agent-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Chat button ────────────────────────────── */
+.btn-chat {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-chat:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: rgba(124, 92, 255, 0.12);
 }
 
 /* ── Toggle button ──────────────────────────── */

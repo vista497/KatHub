@@ -1,6 +1,9 @@
 #pragma once
 
+#include <functional>
 #include <string>
+
+#include <QJsonObject>
 
 // Simple HTTP client for Hermes Agent API Server (http://127.0.0.1:8642).
 // Uses cpp-httplib (header-only) for both server and client operations.
@@ -26,6 +29,23 @@ public:
 
     // DELETE /api/sessions/{id}
     std::string deleteSession(const std::string& sessionId);
+
+    // ── Runs (SSE streaming, used by the chat panel for approvals) ──────
+    // POST /v1/runs → {"run_id":"run_...","status":"started"}; returns run_id
+    std::string startRun(const std::string& sessionId, const std::string& message);
+
+    // GET /v1/runs/{runId}/events — blocking SSE read. Each parsed event is
+    // delivered to onEvent; returns the final reply text (run.completed
+    // output, or run.failed error). Blocks until the stream closes.
+    using RunEventCallback = std::function<void(const QJsonObject&)>;
+    std::string streamRunEvents(const std::string& runId,
+                                const RunEventCallback& onEvent);
+
+    // POST /v1/runs/{runId}/approval — resolve a pending approval
+    // (choice: once | session | always | deny)
+    std::string resolveRunApproval(const std::string& runId,
+                                   const std::string& choice,
+                                   bool all = false);
 
     // ── Cron ────────────────────────────────────────────────────────────
     // GET /api/cron → list all cron jobs

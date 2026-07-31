@@ -13,7 +13,9 @@ target_sources(kathub-handlers PRIVATE
     HermesCliHelper.h HermesCliHelper.cpp
     ModelsHandler.h ModelsHandler.cpp
     SystemHandler.h SystemHandler.cpp
+    HealthHandler.h HealthHandler.cpp
     AgentsHandler.h AgentsHandler.cpp
+    AgentChatHandler.h AgentChatHandler.cpp
     CronHandler.h CronHandler.cpp
     SkillsHandler.h SkillsHandler.cpp
     KanbanHandler.h KanbanHandler.cpp

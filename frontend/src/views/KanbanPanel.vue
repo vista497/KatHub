@@ -5,18 +5,17 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 interface KanbanTask {
   id: string
   title: string
-  status: string        // todo, ready, running, done, blocked
+  status: string        // todo, ready, running, done, blocked, ...
   assignee?: string
-  parents?: string[]
   created_at?: string
   summary?: string
 }
 
 const STATUS_COLUMNS = [
   { key: 'todo', label: 'Ожидает', color: '#666' },
-  { key: 'ready', label: 'Готово', color: '#f0ad4e' },
+  { key: 'ready', label: 'Готово к работе', color: '#f0ad4e' },
   { key: 'running', label: 'В работе', color: '#5bc0de' },
-  { key: 'done', label: 'Готово', color: '#5ce082' },
+  { key: 'done', label: 'Выполнено', color: '#5ce082' },
   { key: 'blocked', label: 'Заблокировано', color: '#ff6b6b' },
 ]
 
@@ -24,6 +23,8 @@ const STATUS_COLUMNS = [
 const tasks = ref<KanbanTask[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
+const draggingId = ref<string | null>(null)
+const dragOverCol = ref<string | null>(null)
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 // ── Computed ─────────────────────────────────────────────────────
@@ -45,6 +46,48 @@ async function loadTasks() {
     tasks.value = []
   } finally {
     loading.value = false
+  }
+}
+
+// ── Drag & drop: перемещение карточки между колонками ─────────────
+function onDragStart(task: KanbanTask) {
+  draggingId.value = task.id
+}
+
+function onDragEnd() {
+  draggingId.value = null
+  dragOverCol.value = null
+}
+
+function onDragOver(colKey: string) {
+  dragOverCol.value = colKey
+}
+
+async function onDrop(colKey: string) {
+  const taskId = draggingId.value
+  draggingId.value = null
+  dragOverCol.value = null
+  if (!taskId) return
+  const task = tasks.value.find(t => t.id === taskId)
+  if (!task || task.status === colKey) return
+
+  // Оптимистично двигаем карточку, затем подтверждаем с сервера
+  const prevStatus = task.status
+  task.status = colKey
+  try {
+    const resp = await fetch(`/api/kanban/${taskId}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: colKey }),
+    })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const data = await resp.json()
+    if (!data.ok) throw new Error(data.error || 'move failed')
+  } catch (e: any) {
+    task.status = prevStatus
+    error.value = e.message || 'Не удалось перенести задачу'
+  } finally {
+    loadTasks()
   }
 }
 
@@ -70,8 +113,8 @@ onUnmounted(() => {
 <template>
   <div class="kanban-panel">
     <div class="panel-header">
-      <h2 class="panel-title">📋 Kanban</h2>
-      <button class="btn btn-ghost" @click="loadTasks" :disabled="loading">↻ Refresh</button>
+      <h2 class="panel-title">📋 Задачи</h2>
+      <button class="btn btn-ghost" @click="loadTasks" :disabled="loading">↻ Обновить</button>
     </div>
 
     <div v-if="error" class="error-banner">{{ error }}</div>
@@ -88,6 +131,10 @@ onUnmounted(() => {
         v-for="col in STATUS_COLUMNS"
         :key="col.key"
         class="column"
+        :class="{ 'drag-over': dragOverCol === col.key }"
+        @dragover.prevent="onDragOver(col.key)"
+        @dragleave="dragOverCol === col.key && (dragOverCol = null)"
+        @drop.prevent="onDrop(col.key)"
       >
         <div class="column-header" :style="{ borderTopColor: col.color }">
           <span class="column-dot" :style="{ background: col.color }"></span>
@@ -99,6 +146,10 @@ onUnmounted(() => {
             v-for="task in tasksByStatus(col.key).value"
             :key="task.id"
             class="task-card"
+            :class="{ dragging: draggingId === task.id }"
+            draggable="true"
+            @dragstart="onDragStart(task)"
+            @dragend="onDragEnd"
           >
             <div class="task-title">{{ task.title }}</div>
             <div class="task-meta">
@@ -160,9 +211,16 @@ onUnmounted(() => {
   border-radius: 8px;
   overflow: hidden;
   margin-right: 12px;
+  border: 2px solid transparent;
+  transition: border-color 0.15s, background 0.15s;
 }
 
 .column:last-child { margin-right: 0; }
+
+.column.drag-over {
+  border-color: var(--color-accent, rgba(124, 92, 255, 0.6));
+  background: rgba(124, 92, 255, 0.06);
+}
 
 .column-header {
   display: flex;
@@ -199,6 +257,7 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 8px;
+  min-height: 80px;
 }
 
 .column-empty {
@@ -215,12 +274,22 @@ onUnmounted(() => {
   border-radius: 6px;
   padding: 10px 12px;
   margin-bottom: 8px;
-  transition: border-color 0.15s;
-  cursor: default;
+  transition: border-color 0.15s, opacity 0.15s, transform 0.15s;
+  cursor: grab;
 }
 
 .task-card:hover {
   border-color: rgba(124, 92, 255, 0.3);
+}
+
+.task-card:active {
+  cursor: grabbing;
+}
+
+.task-card.dragging {
+  opacity: 0.45;
+  transform: scale(0.97);
+  border-color: var(--color-accent, rgba(124, 92, 255, 0.7));
 }
 
 .task-title {

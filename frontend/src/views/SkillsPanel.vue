@@ -193,7 +193,7 @@ async function deleteSkill(skill: Skill) {
 
 // ── Render markdown ──────────────────────────────────────────
 function renderMarkdown(content: string): string {
-  if (!content) return '<em>No content</em>'
+  if (!content) return '<em>Нет содержимого</em>'
   try {
     return marked.parse(content) as string
   } catch {
@@ -220,7 +220,7 @@ onMounted(loadSkills)
     <div class="panel-header">
       <div class="panel-title-row">
         <router-link to="/" class="back-link">← Back</router-link>
-        <h2 class="panel-title">🧩 Skills</h2>
+        <h2 class="panel-title">🧩 Навыки</h2>
       </div>
       <div class="panel-actions">
         <button class="btn btn-primary" @click="openCreateForm">+ New Skill</button>
@@ -280,7 +280,7 @@ onMounted(loadSkills)
             />
           </label>
           <div class="editor-footer">
-            <button class="btn btn-ghost" @click="cancelEdit">Cancel</button>
+            <button class="btn btn-ghost" @click="cancelEdit">Отмена</button>
             <button class="btn btn-primary" @click="saveEdit" :disabled="actionLoading">
               {{ actionLoading ? 'Saving...' : 'Save' }}
             </button>
@@ -304,11 +304,11 @@ onMounted(loadSkills)
         </div>
 
         <!-- Loading -->
-        <div v-if="loading && skills.length === 0" class="loading-state">Loading...</div>
+        <div v-if="loading && skills.length === 0" class="loading-state">Загрузка…</div>
 
         <!-- Empty -->
         <div v-else-if="skills.length === 0" class="empty-state">
-          <p>No skills found.</p>
+          <p>Навыки не найдены.</p>
           <button class="btn btn-primary" @click="openCreateForm">+ Create First Skill</button>
         </div>
 
@@ -338,7 +338,7 @@ onMounted(loadSkills)
       <div v-if="showCreateForm" class="modal-overlay" @click.self="showCreateForm = false">
         <div class="modal">
           <div class="modal-header">
-            <h3>New Skill</h3>
+            <h3>Новый навык</h3>
             <button class="btn-close" @click="showCreateForm = false">✕</button>
           </div>
           <div class="modal-body">
@@ -360,7 +360,7 @@ onMounted(loadSkills)
             </label>
           </div>
           <div class="modal-footer">
-            <button class="btn btn-ghost" @click="showCreateForm = false">Cancel</button>
+            <button class="btn btn-ghost" @click="showCreateForm = false">Отмена</button>
             <button class="btn btn-primary" @click="createSkill" :disabled="!editName.trim() || actionLoading">
               {{ actionLoading ? 'Creating...' : 'Create' }}
             </button>

@@ -1,11 +1,26 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, defineAsyncComponent } from 'vue'
 import ChatView from '../components/chat/ChatView.vue'
-import GalaxyGraph from '../components/graph/GalaxyGraph.vue'
+import DashboardView from './DashboardView.vue'
 import SidebarPanel from '../components/layout/SidebarPanel.vue'
 
 const activeTab = ref<'chat' | 'graph' | 'sidebar'>('chat')
 const settingsPage = ref<string | null>(null)
+
+// Панели — те же, что в DesktopView (ленивая загрузка)
+const panelMap: Record<string, any> = {
+  '/crew': defineAsyncComponent(() => import('./CrewPanel.vue')),
+  '/kanban': defineAsyncComponent(() => import('./KanbanPanel.vue')),
+  '/cron': defineAsyncComponent(() => import('./CronPanel.vue')),
+  '/content': defineAsyncComponent(() => import('./ContentPanel.vue')),
+  '/galaxy': defineAsyncComponent(() => import('../components/graph/GalaxyGraph.vue')),
+  '/skills': defineAsyncComponent(() => import('./SkillsPanel.vue')),
+  '/models': defineAsyncComponent(() => import('./ModelsPanel.vue')),
+  '/system': defineAsyncComponent(() => import('./SystemPanel.vue')),
+  '/agents': defineAsyncComponent(() => import('./AgentsPanel.vue')),
+}
+
+const currentPanel = computed(() => (settingsPage.value ? panelMap[settingsPage.value] || null : null))
 
 function handleNavigate(path: string) {
   settingsPage.value = path
@@ -19,26 +34,19 @@ function handleNavigate(path: string) {
       <!-- Settings sub-pages -->
       <div v-if="activeTab === 'sidebar' && settingsPage" class="settings-page">
         <div class="settings-page-header">
-          <button class="back-btn" @click="settingsPage = null">← Back</button>
+          <button class="back-btn" @click="settingsPage = null">← Назад</button>
           <span class="settings-page-title">{{ settingsPage }}</span>
         </div>
         <div class="settings-page-body">
-          <div v-if="settingsPage === '/settings/plugins'" class="placeholder-page">
-            ⚙️ Plugins — coming soon
-          </div>
-          <div v-else-if="settingsPage === '/settings/backends'" class="placeholder-page">
-            🔌 Backends — coming soon
-          </div>
-          <div v-else-if="settingsPage === '/settings/theme'" class="placeholder-page">
-            🎨 Theme — coming soon
-          </div>
+          <component :is="currentPanel" v-if="currentPanel" />
+          <div v-else class="placeholder-page">Панель недоступна</div>
         </div>
       </div>
 
       <!-- Main tabs -->
       <template v-else>
         <ChatView v-if="activeTab === 'chat'" />
-        <GalaxyGraph v-else-if="activeTab === 'graph'" />
+        <DashboardView v-else-if="activeTab === 'graph'" />
         <SidebarPanel v-else-if="activeTab === 'sidebar'" @navigate="handleNavigate" />
       </template>
     </div>
@@ -142,6 +150,7 @@ function handleNavigate(path: string) {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .placeholder-page {

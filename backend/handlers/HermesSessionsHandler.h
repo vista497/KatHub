@@ -1,11 +1,15 @@
 #pragma once
 
 #include "IHttpHandler.h"
-#include "HermesApiClient.h"
 
 #include <memory>
 #include <string>
 
+class HermesApiClient;
+
+// Serves GET /api/hermes/sessions and GET /api/hermes/sessions/<id>.
+// Primary path: Hermes API server (structured JSON). Falls back to the
+// `hermes` CLI (sessions list / sessions export) when api_server is down.
 class HermesSessionsHandler : public IHttpHandler
 {
 public:

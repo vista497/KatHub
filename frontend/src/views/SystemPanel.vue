@@ -68,9 +68,9 @@ onUnmounted(() => {
 
 <template>
   <div class="system-panel">
-    <h2 class="panel-title">📊 System</h2>
+    <h2 class="panel-title">📊 Система</h2>
 
-    <div v-if="loading && !system" class="state-msg">Loading...</div>
+    <div v-if="loading && !system" class="state-msg">Загрузка…</div>
     <div v-else-if="error && !system" class="state-msg error-text">{{ error }}</div>
 
     <template v-if="system">
@@ -81,7 +81,7 @@ onUnmounted(() => {
           <span class="card-value">v{{ system.version }}</span>
         </div>
         <div class="status-card">
-          <span class="card-label">Uptime</span>
+          <span class="card-label">Аптайм</span>
           <span class="card-value">{{ uptimeFormatted }}</span>
         </div>
       </div>
@@ -96,15 +96,15 @@ onUnmounted(() => {
         </div>
         <div class="hermes-details">
           <div class="detail-row">
-            <span class="detail-label">URL</span>
+            <span class="detail-label">Адрес</span>
             <span class="detail-value mono">{{ system.hermes.url }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Version</span>
+            <span class="detail-label">Версия</span>
             <span class="detail-value">{{ system.hermes.version }}</span>
           </div>
           <div v-if="system.hermes.model" class="detail-row">
-            <span class="detail-label">Model</span>
+            <span class="detail-label">Модель</span>
             <span class="detail-value accent">{{ system.hermes.model }}</span>
           </div>
         </div>
@@ -113,7 +113,7 @@ onUnmounted(() => {
       <!-- Ports -->
       <div class="card-row ports">
         <div class="port-card">
-          <span class="card-label">HTTP Port</span>
+          <span class="card-label">HTTP-порт</span>
           <span class="card-value mono">{{ system.httpPort }}</span>
         </div>
         <div class="port-card">

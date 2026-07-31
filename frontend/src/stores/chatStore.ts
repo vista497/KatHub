@@ -28,8 +28,18 @@ export interface ChatSession {
   source?: string
 }
 
+/** Pending Hermes approval surfaced via /api/chat/approvals */
+export interface ApprovalRequest {
+  runId: string
+  sessionId: string
+  command: string
+  description: string
+  choices: string[]
+}
+
 const PAGE_SIZE = 50
 const POLL_INTERVAL = 3000
+const APPROVAL_POLL_INTERVAL = 1500
 
 /** Parse tool_calls into ToolCall[] — handles both JSON array and Python repr string */
 function parseToolCalls(raw: any): ToolCall[] {
@@ -135,14 +145,73 @@ export const useChatStore = defineStore('chat', () => {
   const hasMore = ref(false)
   let pollTimer: ReturnType<typeof setInterval> | null = null
 
+  // ── Approvals ───────────────────────────────────────────────
+  const pendingApproval = ref<ApprovalRequest | null>(null)
+  const approvalBusy = ref(false)
+  let approvalPollTimer: ReturnType<typeof setInterval> | null = null
+
+  async function pollApprovals() {
+    try {
+      const resp = await fetch('/api/chat/approvals')
+      if (!resp.ok) return
+      const data = await resp.json()
+      if (data.pending) {
+        pendingApproval.value = {
+          runId: data.runId || '',
+          sessionId: data.sessionId || '',
+          command: data.command || '',
+          description: data.description || '',
+          choices: Array.isArray(data.choices) && data.choices.length > 0
+            ? data.choices
+            : ['once', 'session', 'always', 'deny'],
+        }
+      } else {
+        pendingApproval.value = null
+      }
+    } catch { /* silent — chat POST will surface errors */ }
+  }
+
+  function startApprovalPolling() {
+    stopApprovalPolling()
+    pollApprovals()
+    approvalPollTimer = setInterval(pollApprovals, APPROVAL_POLL_INTERVAL)
+  }
+
+  function stopApprovalPolling() {
+    if (approvalPollTimer) { clearInterval(approvalPollTimer); approvalPollTimer = null }
+  }
+
+  async function resolveApproval(choice: string) {
+    const a = pendingApproval.value
+    if (!a || approvalBusy.value) return
+    approvalBusy.value = true
+    try {
+      await fetch('/api/chat/approvals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId: a.runId, choice, all: false }),
+      })
+    } catch (e) {
+      console.warn('Failed to resolve approval:', e)
+    } finally {
+      approvalBusy.value = false
+      pendingApproval.value = null
+      pollApprovals()  // immediate re-check
+    }
+  }
+
   // ── Raw log ──────────────────────────────────────────────────
   const rawEntries = ref<any[]>([])
   const rawEnabled = ref(false)
   const MAX_RAW = 300
 
-  function pushRaw(sessionId: string, rawMessages: any[]) {
+  function pushRaw(_sessionId: string, rawMessages: any[]) {
     if (!rawEnabled.value) return
+    const known = new Set(rawEntries.value.map((e: any) => String(e.id || e.message_id)))
     for (const m of rawMessages) {
+      const id = String(m.id || m.message_id || JSON.stringify(m))
+      if (known.has(id)) continue
+      known.add(id)
       rawEntries.value.push(m)
     }
     if (rawEntries.value.length > MAX_RAW) {
@@ -164,14 +233,14 @@ export const useChatStore = defineStore('chat', () => {
         .filter((s: any) => {
           const sid = s.session_id || s.id
           if (!sid) return false
-          if ((s.message_count || 0) === 0) return false
+          if ((s.message_count !== undefined && s.message_count === 0)) return false
           return true
         })
         .map((s: any) => ({
           id: s.session_id || s.id,
           title: s.title || s.session_id || 'Untitled',
           lastMessageId: s.last_message_id || 0,
-          updatedAt: s.updated_at || '',
+          updatedAt: s.updated_at || s.last_active || '',
           source: s.source || '',
           messages: []
         }))
@@ -268,6 +337,8 @@ export const useChatStore = defineStore('chat', () => {
       timestamp: Date.now()
     })
     sending.value = true
+    pendingApproval.value = null
+    startApprovalPolling()
 
     try {
       const resp = await fetch('/api/chat', {
@@ -297,6 +368,8 @@ export const useChatStore = defineStore('chat', () => {
       })
     } finally {
       sending.value = false
+      stopApprovalPolling()
+      pendingApproval.value = null
     }
   }
 
@@ -308,13 +381,13 @@ export const useChatStore = defineStore('chat', () => {
     const merged: ChatSession[] = []
     for (const s of raw) {
       const id = s.session_id || s.id
-      if (!id || (s.message_count || 0) === 0) continue
+      if (!id || (s.message_count !== undefined && s.message_count === 0)) continue
       const prev = existing.get(id)
       merged.push({
         id,
         title: s.title || id || 'Untitled',
         lastMessageId: s.last_message_id || prev?.lastMessageId || 0,
-        updatedAt: s.updated_at || '',
+        updatedAt: s.updated_at || s.last_active || prev?.updatedAt || '',
         source: s.source || prev?.source || '',
         messages: prev?.messages || [],
       })
@@ -337,62 +410,58 @@ export const useChatStore = defineStore('chat', () => {
       const fresh = raw.find((r: any) => (r.session_id || r.id) === sid)
       if (!fresh) return
 
-      const serverCount = fresh.message_count || 0
-      const localCount = messages.value.filter(m => !m.id.startsWith('local-')).length
+      // CLI-based session list carries no message_count — reload and diff by id.
+      const allMsgs = await loadMessages(sid)
 
-      if (serverCount > localCount) {
-        const allMsgs = await loadMessages(sid)
+      let maxId = 0
+      for (const m of messages.value) {
+        const id = Number(m.id)
+        if (!isNaN(id) && id > maxId) maxId = id
+      }
 
-        let maxId = 0
-        for (const m of messages.value) {
-          const id = Number(m.id)
-          if (!isNaN(id) && id > maxId) maxId = id
-        }
+      const newMsgs = allMsgs.filter(m => {
+        const id = Number(m.id)
+        return !isNaN(id) && id > maxId
+      })
 
-        const newMsgs = allMsgs.filter(m => {
-          const id = Number(m.id)
-          return !isNaN(id) && id > maxId
+      if (newMsgs.length > 0) {
+        const newUserMsgs = newMsgs.filter(m => m.role === 'user')
+        const deduped = messages.value.filter(m => {
+          if (!m.id.startsWith('local-')) return true
+          const hasServerEq = newUserMsgs.some(nm =>
+            Math.abs(nm.timestamp - m.timestamp) < 10000)
+          return !hasServerEq
         })
+        messages.value = [...deduped, ...newMsgs]
 
-        if (newMsgs.length > 0) {
-          const newUserMsgs = newMsgs.filter(m => m.role === 'user')
-          const deduped = messages.value.filter(m => {
-            if (!m.id.startsWith('local-')) return true
-            const hasServerEq = newUserMsgs.some(nm =>
-              Math.abs(nm.timestamp - m.timestamp) < 10000)
-            return !hasServerEq
-          })
-          messages.value = [...deduped, ...newMsgs]
-
-          // ── Update existing tool_calls with newly arrived results ──
-          const resultsByCallId = new Map<string, { result: string; isError: boolean }>()
-          for (const m of allMsgs) {
-            if (m.role === 'tool' && m.tool_call_id && m.tool_call_id !== 'None') {
-              let isErr = false
-              try {
-                const obj = JSON.parse(m.content)
-                isErr = !!(obj.error || obj.is_error || obj.success === false)
-              } catch { /* not JSON */ }
-              resultsByCallId.set(m.tool_call_id, { result: m.content, isError: isErr })
-            }
+        // ── Update existing tool_calls with newly arrived results ──
+        const resultsByCallId = new Map<string, { result: string; isError: boolean }>()
+        for (const m of allMsgs) {
+          if (m.role === 'tool' && m.tool_call_id && m.tool_call_id !== 'None') {
+            let isErr = false
+            try {
+              const obj = JSON.parse(m.content)
+              isErr = !!(obj.error || obj.is_error || obj.success === false)
+            } catch { /* not JSON */ }
+            resultsByCallId.set(m.tool_call_id, { result: m.content, isError: isErr })
           }
-          for (const m of messages.value) {
-            if (m.tool_calls) {
-              for (const tc of m.tool_calls) {
-                if (tc.id && tc.result === undefined) {
-                  const r = resultsByCallId.get(tc.id)
-                  if (r) {
-                    tc.result = r.result
-                    tc.isError = r.isError
-                  }
+        }
+        for (const m of messages.value) {
+          if (m.tool_calls) {
+            for (const tc of m.tool_calls) {
+              if (tc.id && tc.result === undefined) {
+                const r = resultsByCallId.get(tc.id)
+                if (r) {
+                  tc.result = r.result
+                  tc.isError = r.isError
                 }
               }
             }
           }
-
-          displayCount.value = Math.max(PAGE_SIZE, messages.value.length)
-          hasMore.value = true
         }
+
+        displayCount.value = Math.max(PAGE_SIZE, messages.value.length)
+        hasMore.value = true
       }
     } catch { /* silent */ }
   }
@@ -410,6 +479,8 @@ export const useChatStore = defineStore('chat', () => {
     messages.value = []
     panelOpen.value = true
     stopPolling()
+    stopApprovalPolling()
+    pendingApproval.value = null
   }
 
   async function deleteSession(sessionId: string) {
@@ -424,7 +495,12 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  function closePanel() { panelOpen.value = false; stopPolling() }
+  function closePanel() {
+    panelOpen.value = false
+    stopPolling()
+    stopApprovalPolling()
+    pendingApproval.value = null
+  }
   function toggleSessions() { sessionsVisible.value = !sessionsVisible.value }
 
   loadSessions().then(() => {
@@ -441,6 +517,7 @@ export const useChatStore = defineStore('chat', () => {
   return {
     messages, sessions, activeSessionId, panelOpen, sessionsVisible,
     sending, loading, hasMore,
+    pendingApproval, approvalBusy, resolveApproval,
     sendMessage, newSession, openSession, deleteSession,
     closePanel, toggleSessions, loadSessions, loadMessages,
     loadOlderMessages,

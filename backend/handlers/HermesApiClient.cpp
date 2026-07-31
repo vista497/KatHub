@@ -5,6 +5,10 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QJsonParseError>
+#include <QString>
+
+#include <algorithm>
 
 HermesApiClient::HermesApiClient(const std::string& baseUrl, const std::string& apiKey)
     : baseUrl_(baseUrl), apiKey_(apiKey) {}
@@ -91,6 +95,140 @@ std::string HermesApiClient::chat(const std::string& sessionId, const std::strin
 std::string HermesApiClient::deleteSession(const std::string& sessionId)
 {
     return request("DELETE", "/api/sessions/" + sessionId);
+}
+
+// ── Runs (SSE streaming) ───────────────────────────────────────────────
+
+static std::string jsonString(const QJsonObject& obj, const char* key,
+                              const std::string& fallback = "")
+{
+    const QJsonValue v = obj.value(QString::fromLatin1(key));
+    return v.isString() ? v.toString().toStdString() : fallback;
+}
+
+std::string HermesApiClient::startRun(const std::string& sessionId,
+                                      const std::string& message)
+{
+    QJsonObject body;
+    body["input"] = QString::fromStdString(message);
+    if (!sessionId.empty())
+        body["session_id"] = QString::fromStdString(sessionId);
+
+    QByteArray json = QJsonDocument(body).toJson(QJsonDocument::Compact);
+    std::string resp = request("POST", "/v1/runs", json.toStdString());
+
+    QJsonParseError err;
+    QJsonDocument doc = QJsonDocument::fromJson(
+        QByteArray::fromStdString(resp), &err);
+    if (err.error == QJsonParseError::NoError && doc.isObject()) {
+        std::string runId = jsonString(doc.object(), "run_id");
+        if (!runId.empty())
+            return runId;
+    }
+    // Fallback: return the raw body; caller reports it as an error string.
+    return resp;
+}
+
+std::string HermesApiClient::streamRunEvents(const std::string& runId,
+                                             const RunEventCallback& onEvent)
+{
+    httplib::Client cli(baseUrl_);
+    cli.set_connection_timeout(10);
+    cli.set_read_timeout(60);  // per-chunk; SSE keepalives arrive every ~30s
+
+    httplib::Headers headers = {
+        {"Authorization", "Bearer " + apiKey_},
+        {"Accept", "text/event-stream"},
+    };
+
+    std::string buffer;       // partial SSE frame
+    std::string finalOutput;  // run.completed output / run.failed error
+    bool terminalSeen = false;
+
+    const std::string path = "/v1/runs/" + runId + "/events";
+    httplib::Result res = cli.Get(path, headers,
+        [&](const char* data, size_t len) -> bool {
+            buffer.append(data, len);
+            // Split on SSE frame boundary ("\n\n" or "\r\n\r\n").
+            size_t pos;
+            while ((pos = buffer.find("\n\n")) != std::string::npos) {
+                std::string frame = buffer.substr(0, pos);
+                buffer.erase(0, pos + 2);
+
+                // Extract the "data: " payload (may span multiple data: lines).
+                std::string payload;
+                size_t dpos = 0;
+                while ((dpos = frame.find("data:")) != std::string::npos) {
+                    size_t lineEnd = frame.find('\n', dpos);
+                    std::string line = frame.substr(
+                        dpos + 5, lineEnd == std::string::npos
+                            ? std::string::npos : lineEnd - dpos - 5);
+                    // Strip a trailing '\r' left by CRLF frames.
+                    if (!line.empty() && line.back() == '\r')
+                        line.pop_back();
+                    payload += line;
+                    if (lineEnd == std::string::npos)
+                        break;
+                    frame.erase(0, lineEnd + 1);
+                }
+                if (payload.empty() || payload[0] != '{')
+                    continue;  // keepalive comment or non-JSON
+
+                QJsonParseError err;
+                QJsonDocument doc = QJsonDocument::fromJson(
+                    QByteArray::fromStdString(payload), &err);
+                if (err.error != QJsonParseError::NoError || !doc.isObject())
+                    continue;
+
+                QJsonObject event = doc.object();
+                std::string etype = jsonString(event, "event");
+
+                if (etype == "run.completed") {
+                    finalOutput = jsonString(event, "output");
+                    terminalSeen = true;
+                } else if (etype == "run.failed") {
+                    finalOutput = jsonString(event, "error", "Agent run failed");
+                    terminalSeen = true;
+                } else if (etype == "run.cancelled") {
+                    finalOutput = "Run cancelled";
+                    terminalSeen = true;
+                }
+
+                if (onEvent)
+                    onEvent(event);
+
+                if (terminalSeen)
+                    return false;  // stop reading the stream
+            }
+            return true;
+        });
+
+    if (!res) {
+        QJsonObject err;
+        err["error"] = QStringLiteral("SSE stream failed: %1")
+            .arg(httplib::to_string(res.error()).c_str());
+        return QJsonDocument(err).toJson(QJsonDocument::Compact).toStdString();
+    }
+    if (res->status >= 400) {
+        QJsonObject err;
+        err["error"] = QStringLiteral("SSE stream HTTP %1: %2")
+            .arg(res->status)
+            .arg(QString::fromStdString(res->body).left(200));
+        return QJsonDocument(err).toJson(QJsonDocument::Compact).toStdString();
+    }
+    return finalOutput;
+}
+
+std::string HermesApiClient::resolveRunApproval(const std::string& runId,
+                                                const std::string& choice,
+                                                bool all)
+{
+    QJsonObject body;
+    body["choice"] = QString::fromStdString(choice);
+    if (all)
+        body["all"] = true;
+    QByteArray json = QJsonDocument(body).toJson(QJsonDocument::Compact);
+    return request("POST", "/v1/runs/" + runId + "/approval", json.toStdString());
 }
 
 // ── Cron ────────────────────────────────────────────────────────────────

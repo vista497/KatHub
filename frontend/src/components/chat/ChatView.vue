@@ -3,6 +3,7 @@ import { ref, watch, nextTick, computed } from 'vue'
 import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
 import RawLog from './RawLog.vue'
+import ApprovalModal from './ApprovalModal.vue'
 import { useChatStore } from '../../stores/chatStore'
 
 const chat = useChatStore()
@@ -119,6 +120,7 @@ watch(() => chat.messages.length, async () => {
       </div>
 
       <ChatInput @send="handleSend" />
+      <ApprovalModal />
     </template>
   </div>
 </template>

@@ -3,6 +3,7 @@ import { watch, ref, nextTick } from 'vue'
 import { useChatStore } from '../../stores/chatStore'
 import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
+import ApprovalModal from './ApprovalModal.vue'
 
 const chat = useChatStore()
 const messagesEnd = ref<HTMLDivElement>()
@@ -43,11 +44,12 @@ watch(() => chat.messages.length, async () => {
         :showTime="shouldShowTime(i)"
         @clarify-choice="handleClarifyChoice"
       />
-      <div v-if="chat.sending" class="typing">Thinking...</div>
+      <div v-if="chat.sending" class="typing">Думает…</div>
       <div ref="messagesEnd"></div>
     </div>
 
     <ChatInput @send="handleSend" :sending="chat.sending" />
+    <ApprovalModal />
   </div>
 </template>
 

@@ -111,7 +111,7 @@ function autoResize() {
       @keydown="onKeydown"
       @input="onInput"
     ></textarea>
-    <button v-if="props.sending" class="stop-btn" @click="emit('send', '/stop')" title="Stop generation">
+    <button v-if="props.sending" class="stop-btn" @click="emit('send', '/stop')" title="Остановить генерацию">
       ■
     </button>
     <button class="send-btn" @click="handleSend" :disabled="!text.trim() || props.sending">

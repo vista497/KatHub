@@ -167,8 +167,10 @@ onMounted(loadJobs)
     <!-- Header -->
     <div class="panel-header">
       <div class="panel-title-row">
-        <router-link to="/" class="back-link">← Back</router-link>
-        <h2 class="panel-title">⏱️ Cron Jobs</h2>
+        <div class="title-block">
+          <span class="ops-eyebrow">Schedule</span>
+          <h2 class="panel-title">Расписание.</h2>
+        </div>
       </div>
       <div class="panel-actions">
         <button class="btn btn-primary" @click="openCreateForm">+ New Job</button>
@@ -184,22 +186,22 @@ onMounted(loadJobs)
 
     <!-- Table -->
     <div class="panel-body">
-      <div v-if="loading && jobs.length === 0" class="loading-state">Loading...</div>
+      <div v-if="loading && jobs.length === 0" class="loading-state">Загрузка…</div>
 
       <div v-else-if="jobs.length === 0" class="empty-state">
-        <p>No cron jobs configured.</p>
+        <p>Cron-джобы не настроены.</p>
         <button class="btn btn-primary" @click="openCreateForm">+ Create First Job</button>
       </div>
 
-      <div v-else class="table-wrap">
+      <div v-else class="table-wrap glass-card">
         <table class="cron-table">
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Schedule</th>
-              <th>Status</th>
-              <th>Last Run</th>
-              <th>Actions</th>
+              <th>Название</th>
+              <th>Расписание</th>
+              <th>Статус</th>
+              <th>Последний запуск</th>
+              <th>Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -295,7 +297,7 @@ onMounted(loadJobs)
             </label>
           </div>
           <div class="modal-footer">
-            <button class="btn btn-ghost" @click="showForm = false">Cancel</button>
+            <button class="btn btn-ghost" @click="showForm = false">Отмена</button>
             <button class="btn btn-primary" @click="submitForm" :disabled="!form.name || !form.schedule">
               {{ editingJob ? 'Save' : 'Create' }}
             </button>
@@ -308,12 +310,12 @@ onMounted(loadJobs)
 
 <style scoped>
 .panel {
-  height: 100vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--color-bg-primary);
-  color: var(--color-text-primary);
-  font-family: var(--font-sans);
+  color: var(--text-primary, #F4F4F8);
+  font-family: var(--font-display, var(--font-sans));
 }
 
 /* ── Header ─────────────────────────────────── */
@@ -321,127 +323,151 @@ onMounted(loadJobs)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
-  background: var(--color-bg-secondary);
-  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-4) var(--space-5);
+  background: transparent;
+  border-bottom: 1px solid var(--border-glass);
   flex-shrink: 0;
 }
 
 .panel-title-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
 
+.title-block { display: flex; flex-direction: column; gap: 2px; }
+.ops-eyebrow {
+    font: 500 var(--font-size-xs) var(--font-mono);
+    color: var(--text-muted); letter-spacing: var(--letter-spacing-wide);
+    text-transform: uppercase;
+  }
 .back-link {
-  color: var(--color-accent);
-  text-decoration: none;
-  font-size: 14px;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  transition: background var(--transition-fast);
-}
+    color: var(--color-accent);
+    text-decoration: none;
+    font-size: 14px;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast);
+  }
 .back-link:hover { background: var(--color-surface-hover); }
 
 .panel-title {
-  font-size: 18px;
-  font-weight: 700;
-  margin: 0;
-}
+    font-family: var(--font-display);
+    font-size: clamp(28px, 3vw, 40px);
+    font-weight: 500;
+    margin: 0;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+  }
 
 .panel-actions {
-  display: flex;
-  gap: 8px;
-}
-
-/* ── Body ───────────────────────────────────── */
+    display: flex;
+    gap: 8px;
+  }
+  /* ── Body ───────────────────────────────────── */
 .panel-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px;
-}
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-4);
+  }
 
-/* ── Table ──────────────────────────────────── */
+.glass-card {
+    background: var(--bg-glass);
+    backdrop-filter: var(--blur-heavy);
+    -webkit-backdrop-filter: var(--blur-heavy);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+  }
+
+  /* ── Table ──────────────────────────────────── */
 .table-wrap {
-  overflow-x: auto;
-}
+    overflow-x: auto;
+  }
 
 .cron-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    font-family: var(--font-display);
+  }
 
 .cron-table th {
-  text-align: left;
-  padding: 10px 12px;
-  color: var(--color-text-muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--color-border);
-}
+    text-align: left;
+    padding: 10px 12px;
+    color: var(--text-muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    border-bottom: 1px solid var(--border-glass);
+    font-family: var(--font-mono);
+  }
 
 .cron-table td {
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  vertical-align: middle;
-}
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    vertical-align: middle;
+    color: var(--text-primary);
+  }
 
 .cron-table tr.disabled td {
-  opacity: 0.45;
-}
+    opacity: 0.45;
+  }
 
 .cron-table tr:hover td {
-  background: rgba(255,255,255,0.02);
-}
+    background: rgba(255,255,255,0.03);
+  }
 
 .name-cell {
-  font-weight: 600;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+    font-weight: 600;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
 .time-cell {
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  white-space: nowrap;
-}
+    color: var(--text-muted);
+    font-size: 13px;
+    white-space: nowrap;
+  }
 
 .actions-cell {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
 
-code {
-  background: var(--color-bg-tertiary);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-}
+  code {
+    background: rgba(255,255,255,0.06);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--brand-cyan);
+  }
 
-/* ── Badges ─────────────────────────────────── */
+  /* ── Badges ─────────────────────────────────── */
 .badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  font-size: 11px;
-  font-weight: 700;
-}
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-size: 10px;
+    font-weight: 500;
+    font-family: var(--font-mono);
+    letter-spacing: var(--letter-spacing-wide);
+  }
 
 .badge-on {
-  background: rgba(92, 224, 130, 0.15);
-  color: #5ce082;
-}
+    background: rgba(94, 226, 181, 0.15);
+    color: var(--status-active);
+  }
 
 .badge-off {
-  background: rgba(255, 107, 107, 0.15);
-  color: #ff6b6b;
-}
+    background: rgba(242, 109, 109, 0.15);
+    color: var(--brand-red);
+  }
 
 /* ── States ─────────────────────────────────── */
 .loading-state, .empty-state {

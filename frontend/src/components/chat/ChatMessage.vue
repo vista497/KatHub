@@ -7,7 +7,7 @@ import python from 'highlight.js/lib/languages/python'
 import bash from 'highlight.js/lib/languages/bash'
 import typescript from 'highlight.js/lib/languages/typescript'
 import json from 'highlight.js/lib/languages/json'
-import type { ChatMessage, ToolCall } from '../../stores/chatStore'
+import type { ChatMessage } from '../../stores/chatStore'
 
 hljs.registerLanguage('cpp', cpp)
 hljs.registerLanguage('python', python)
@@ -282,7 +282,7 @@ function toggleTool(idx: number) {
         <div class="tool-header" @click="toggleTool(i)">
           <span class="tool-arrow">{{ expandedTools.has(i) ? '▼' : '▶' }}</span>
           <span class="tool-icon pending-icon">⏳</span>
-          <span class="tool-name">{{ block.toolName || 'Tool' }}</span>
+          <span class="tool-name">{{ block.toolName || 'Инструмент' }}</span>
         </div>
         <pre v-if="expandedTools.has(i)" class="tool-body">{{ block.content }}</pre>
       </div>
@@ -309,7 +309,7 @@ function toggleTool(idx: number) {
           <span class="tool-icon" :class="{ 'check-icon': !block.isError, 'error-icon': block.isError }">
             {{ block.isError ? '✕' : '✓' }}
           </span>
-          <span class="tool-name">{{ block.toolName || 'Tool result' }}</span>
+          <span class="tool-name">{{ block.toolName || 'Результат инструмента' }}</span>
         </div>
         <pre v-if="expandedTools.has(i)" class="tool-body">{{ block.content }}</pre>
       </div>

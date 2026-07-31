@@ -17,10 +17,13 @@
 #include "WsStatusHandler.h"
 #include "ChatHandler.h"
 #include "HermesApiClient.h"
+#include "HermesCliHelper.h"
 #include "HermesSessionsHandler.h"
 #include "ModelsHandler.h"
 #include "SystemHandler.h"
+#include "HealthHandler.h"
 #include "AgentsHandler.h"
+#include "AgentChatHandler.h"
 #include "CronHandler.h"
 #include "SkillsHandler.h"
 #include "KanbanHandler.h"
@@ -262,6 +265,8 @@ void KatHubApp::configureServices()
 
 void KatHubApp::init()
 {
+    QString hermesProfile = QStringLiteral("default");
+
     if (mode_ == Mode::Watchdog) {
         std::cout << "KatHub Watchdog starting..." << std::endl;
         watchdogStartChild();
@@ -357,6 +362,8 @@ void KatHubApp::init()
                         } else if (line.startsWith("HERMES_HOST=")) {
                             hermesHost = QStringLiteral("http://") + line.mid(12);
                             std::cout << "Using Hermes host from .env: " << hermesHost.toStdString() << std::endl;
+                        } else if (line.startsWith("HERMES_PROFILE=")) {
+                            hermesProfile = line.mid(14);
                         }
                     }
                     f.close();
@@ -381,14 +388,26 @@ void KatHubApp::init()
             std::cout << "Registered handler: " << hsh->route() << std::endl;
         }
 
-        // DELETE route for session removal — uses API
+        // DELETE route for session removal — via hermes CLI
         {
-            auto api = hermesApi_;
             httpServer_->server().Delete(R"(/api/hermes/sessions/(.*))",
-                [api](const httplib::Request &req, httplib::Response &res) {
+                [](const httplib::Request &req, httplib::Response &res) {
                     std::string sid = req.matches[1];
-                    std::string resp = api->deleteSession(sid);
-                    res.set_content(resp, "application/json; charset=utf-8");
+                    auto r = HermesCliHelper::runArgv(
+                        {"sessions", "delete", sid, "--yes"}, 30000);
+                    QJsonObject out;
+                    if (r.exitCode != 0) {
+                        out["error"] = QString::fromStdString(
+                            !r.stderrText.empty() ? r.stderrText
+                                                  : "hermes sessions delete failed");
+                        res.status = 502;
+                    } else {
+                        out["deleted"] = true;
+                        out["sessionId"] = QString::fromStdString(sid);
+                        res.status = 200;
+                    }
+                    res.set_content(QJsonDocument(out).toJson(QJsonDocument::Compact).toStdString(),
+                                    "application/json; charset=utf-8");
                 });
         }
 
@@ -409,11 +428,25 @@ void KatHubApp::init()
             std::cout << "Registered handler: " << sh->route() << std::endl;
         }
 
+        // ── Health handler ─────────────────────────────────────
+        {
+            auto *hh = new HealthHandler();
+            httpServer_->registerHandler(hh);
+            std::cout << "Registered handler: " << hh->route() << std::endl;
+        }
+
         // ── Agents handler ─────────────────────────────────────
         {
             auto *ah = new AgentsHandler();
             httpServer_->registerHandler(ah);
             std::cout << "Registered handler: " << ah->route() << std::endl;
+        }
+
+        // ── Agent chat handler (separate chats per agent) ──────
+        {
+            auto *ach = new AgentChatHandler();
+            httpServer_->registerHandler(ach);
+            std::cout << "Registered handler: " << ach->route() << std::endl;
         }
 
         // ── Cron handler ───────────────────────────────────────
@@ -450,6 +483,7 @@ void KatHubApp::init()
             // If the handler is a ChatHandler, inject Hermes CLI.
             if (auto *ch = dynamic_cast<ChatHandler *>(handler)) {
                 ch->setApiClient(hermesApi_);
+                ch->setProfile(hermesProfile.toStdString());
             }
             httpServer_->registerHandler(handler);
             std::cout << "Registered handler: " << handler->route() << std::endl;
@@ -529,6 +563,8 @@ void KatHubApp::init()
                             apiKey = line.mid(15);
                         } else if (line.startsWith("HERMES_HOST=")) {
                             hermesHost = QStringLiteral("http://") + line.mid(12);
+                        } else if (line.startsWith("HERMES_PROFILE=")) {
+                            hermesProfile = line.mid(14);
                         }
                     }
                     f.close();
@@ -553,14 +589,26 @@ void KatHubApp::init()
             std::cout << "Registered handler: " << hsh->route() << std::endl;
         }
 
-        // DELETE route for session removal — uses httplib directly
+        // DELETE route for session removal — via hermes CLI
         {
-            auto api = hermesApi_;
             httpServer_->server().Delete(R"(/api/hermes/sessions/(.*))",
-                [api](const httplib::Request &req, httplib::Response &res) {
+                [](const httplib::Request &req, httplib::Response &res) {
                     std::string sid = req.matches[1];
-                    std::string resp = api->deleteSession(sid);
-                    res.set_content(resp, "application/json; charset=utf-8");
+                    auto r = HermesCliHelper::runArgv(
+                        {"sessions", "delete", sid, "--yes"}, 30000);
+                    QJsonObject out;
+                    if (r.exitCode != 0) {
+                        out["error"] = QString::fromStdString(
+                            !r.stderrText.empty() ? r.stderrText
+                                                  : "hermes sessions delete failed");
+                        res.status = 502;
+                    } else {
+                        out["deleted"] = true;
+                        out["sessionId"] = QString::fromStdString(sid);
+                        res.status = 200;
+                    }
+                    res.set_content(QJsonDocument(out).toJson(QJsonDocument::Compact).toStdString(),
+                                    "application/json; charset=utf-8");
                 });
         }
 
@@ -629,6 +677,7 @@ void KatHubApp::init()
             }
             if (auto *ch = dynamic_cast<ChatHandler *>(handler)) {
                 ch->setApiClient(hermesApi_);
+                ch->setProfile(hermesProfile.toStdString());
             }
             httpServer_->registerHandler(handler);
         }

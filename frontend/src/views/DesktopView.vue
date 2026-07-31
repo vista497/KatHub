@@ -2,71 +2,58 @@
 import { computed, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import SidebarPanel from '../components/layout/SidebarPanel.vue'
-import GalaxyGraph from '../components/graph/GalaxyGraph.vue'
+import DashboardView from './DashboardView.vue'
 import ChatOverlay from '../components/chat/ChatOverlay.vue'
+import AgentChatModal from '../components/chat/AgentChatModal.vue'
 import { useGraphStore } from '../stores/graphStore'
 
-// Lazy-load panel components
+// Lazy-load panel components (панели референса + управление)
+const CrewPanel = defineAsyncComponent(() => import('./CrewPanel.vue'))
+const KanbanPanel = defineAsyncComponent(() => import('./KanbanPanel.vue'))
 const CronPanel = defineAsyncComponent(() => import('./CronPanel.vue'))
+const ContentPanel = defineAsyncComponent(() => import('./ContentPanel.vue'))
+const GalaxyGraph = defineAsyncComponent(() => import('../components/graph/GalaxyGraph.vue'))
 const SkillsPanel = defineAsyncComponent(() => import('./SkillsPanel.vue'))
 const ModelsPanel = defineAsyncComponent(() => import('./ModelsPanel.vue'))
 const SystemPanel = defineAsyncComponent(() => import('./SystemPanel.vue'))
 const AgentsPanel = defineAsyncComponent(() => import('./AgentsPanel.vue'))
-const KanbanPanel = defineAsyncComponent(() => import('./KanbanPanel.vue'))
 
 const route = useRoute()
 const graph = useGraphStore()
 
 // Map route paths to panel components
 const panelMap: Record<string, any> = {
-  '/settings/cron': CronPanel,
-  '/settings/skills': SkillsPanel,
-  '/settings/models': ModelsPanel,
-  '/settings/system': SystemPanel,
-  '/settings/agents': AgentsPanel,
-  '/settings/kanban': KanbanPanel,
+  '/crew': CrewPanel,
+  '/kanban': KanbanPanel,
+  '/cron': CronPanel,
+  '/content': ContentPanel,
+  '/galaxy': GalaxyGraph,
+  '/skills': SkillsPanel,
+  '/models': ModelsPanel,
+  '/system': SystemPanel,
+  '/agents': AgentsPanel,
 }
 
 const activePanel = computed(() => panelMap[route.path] || null)
-const showGalaxy = computed(() => !activePanel.value)
-
-// Tab definitions for navigation
-const tabs = [
-  { path: '/settings/cron', label: 'Cron' },
-  { path: '/settings/skills', label: 'Skills' },
-  { path: '/settings/models', label: 'Models' },
-  { path: '/settings/system', label: 'System' },
-  { path: '/settings/agents', label: 'Agents' },
-  { path: '/settings/kanban', label: 'Kanban' },
-]
+const showDashboard = computed(() => !activePanel.value)
 </script>
 
 <template>
   <div class="desktop-layout">
     <SidebarPanel class="sidebar" asLinks />
     <div class="main-area">
-      <!-- Tab navigation bar -->
-      <nav class="tab-bar" v-if="activePanel">
-        <router-link
-          v-for="tab in tabs"
-          :key="tab.path"
-          :to="tab.path"
-          class="tab"
-          :class="{ active: route.path === tab.path }"
-        >
-          {{ tab.label }}
-        </router-link>
-      </nav>
-
       <!-- Content area -->
-      <div class="content" :class="{ 'has-tabs': activePanel }">
-        <GalaxyGraph v-if="showGalaxy" class="graph" />
+      <div class="content">
+        <DashboardView v-if="showDashboard" class="dashboard" />
         <component v-else :is="activePanel" class="panel" />
       </div>
     </div>
 
     <!-- Right edge: chat toggle + slide-out panel -->
     <ChatOverlay class="chat-overlay" />
+
+    <!-- Per-agent chat modal -->
+    <AgentChatModal />
 
     <!-- File editor modal -->
     <Transition name="fade">
@@ -76,7 +63,7 @@ const tabs = [
             <span class="editor-title">📄 {{ graph.editingTitle }}</span>
             <button class="editor-close" @click="graph.closeFile()">✕</button>
           </div>
-          <div v-if="graph.fileLoading" class="editor-loading">Loading...</div>
+          <div v-if="graph.fileLoading" class="editor-loading">Загрузка…</div>
           <pre v-else class="editor-content">{{ graph.fileContent }}</pre>
         </div>
       </div>
@@ -87,7 +74,7 @@ const tabs = [
 <style scoped>
 .desktop-layout {
   display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr 0px;
+  grid-template-columns: var(--sidebar-width) 1fr;
   grid-template-rows: 100vh;
   overflow: hidden;
   background: var(--color-bg-primary);
@@ -101,37 +88,6 @@ const tabs = [
   overflow: hidden;
 }
 
-/* Tab bar */
-.tab-bar {
-  display: flex;
-  gap: 0;
-  background: var(--color-bg-secondary);
-  border-bottom: 1px solid var(--color-border);
-  padding: 0 var(--space-3);
-  flex-shrink: 0;
-  min-height: 40px;
-}
-
-.tab {
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  text-decoration: none;
-  border-bottom: 2px solid transparent;
-  transition: all var(--transition-fast);
-  white-space: nowrap;
-}
-
-.tab:hover {
-  color: var(--color-text-primary);
-  background: var(--color-surface-hover);
-}
-
-.tab.active {
-  color: var(--color-accent);
-  border-bottom-color: var(--color-accent);
-}
-
 /* Content */
 .content {
   flex: 1;
@@ -139,11 +95,7 @@ const tabs = [
   position: relative;
 }
 
-.content.has-tabs {
-  /* panels get full height minus tab bar */
-}
-
-.graph {
+.dashboard {
   width: 100%;
   height: 100%;
 }
@@ -155,8 +107,12 @@ const tabs = [
 }
 
 .chat-overlay {
+  position: fixed;
+  right: 0;
+  top: 0;
   height: 100vh;
   overflow: visible;
+  z-index: 90;
 }
 
 /* File editor modal */
@@ -169,7 +125,6 @@ const tabs = [
   align-items: center;
   justify-content: center;
 }
-
 .file-editor {
   width: min(800px, 90vw);
   max-height: 80vh;
@@ -180,7 +135,6 @@ const tabs = [
   flex-direction: column;
   overflow: hidden;
 }
-
 .editor-header {
   display: flex;
   align-items: center;
@@ -188,13 +142,11 @@ const tabs = [
   padding: 12px 16px;
   border-bottom: 1px solid rgba(124, 92, 255, 0.15);
 }
-
 .editor-title {
   font-size: 14px;
   color: #ccccee;
   font-weight: 600;
 }
-
 .editor-close {
   background: none;
   border: none;
@@ -206,13 +158,11 @@ const tabs = [
   transition: all 0.15s;
 }
 .editor-close:hover { color: #fff; background: rgba(255,255,255,0.08); }
-
 .editor-loading {
   padding: 24px;
   color: #666888;
   text-align: center;
 }
-
 .editor-content {
   flex: 1;
   overflow-y: auto;
@@ -225,7 +175,6 @@ const tabs = [
   white-space: pre-wrap;
   word-break: break-word;
 }
-
 .fade-enter-active, .fade-leave-active {
   transition: opacity 0.2s;
 }

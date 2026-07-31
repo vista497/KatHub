@@ -84,7 +84,7 @@ onUnmounted(() => {
       <!-- Sessions sidebar (collapsible) -->
       <div class="sessions-sidebar" :class="{ hidden: !chat.sessionsVisible }">
         <div class="sessions-header">
-          <span class="sessions-title">Chats</span>
+          <span class="sessions-title">Чаты</span>
           <button class="hide-sessions-btn" @click="chat.toggleSessions()" title="Hide sessions list">
             ◀
           </button>
