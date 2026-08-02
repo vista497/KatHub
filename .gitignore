@@ -16,3 +16,13 @@ installer/staging/
 gh_create.py
 providers.json
 katmemory/
+
+# Speech runtime (heavy, not for git)
+backend/resources/speech/STT/env/
+backend/resources/speech/TTS/env/
+backend/resources/speech/models/
+
+# Build logs / scratch
+build_ninja.log
+c6.json
+check_session.py

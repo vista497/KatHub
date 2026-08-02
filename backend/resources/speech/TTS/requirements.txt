@@ -1,0 +1,45 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# TTSNodeNew Dependencies - Full Requirements List
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# ONLINE INSTALLATION:
+#   Run: install.bat
+#
+# OFFLINE INSTALLATION:
+#   See OFFLINE_INSTALL.md for detailed instructions
+#
+# ═══════════════════════════════════════════════════════════════════════════
+
+# PyTorch (install separately with CUDA support)
+# For CUDA 11.8:
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+# For CUDA 12.1:
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# For CUDA 12.8:
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+# .\.venv\Scripts\pip install soundfile huggingface_hub ruaccent f5-tts num2words librosa scipy transformers safetensors
+--index-url https://download.pytorch.org/whl/cu128
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Core audio processing
+numpy>=1.24.0
+soundfile>=0.12.1
+scipy>=1.10.0
+librosa>=0.10.0
+
+# Hugging Face
+huggingface_hub>=0.20.0
+transformers>=4.30.0
+safetensors>=0.4.0
+
+# Russian text processing
+ruaccent
+
+# Number conversion
+num2words>=0.5.12
+number-to-words>=0.2.0
+
+# TTS Engine
+f5-tts
