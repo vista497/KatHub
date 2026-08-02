@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 
-const props = defineProps<{ sending?: boolean }>()
+const props = defineProps<{ sending?: boolean; readOnly?: boolean }>()
 const emit = defineEmits<{ send: [text: string] }>()
 const text = ref('')
 const textarea = ref<HTMLTextAreaElement>()
@@ -85,6 +85,55 @@ function autoResize() {
   textarea.value.style.height = 'auto'
   textarea.value.style.height = textarea.value.scrollHeight + 'px'
 }
+
+// ── Speech capture (текст из речи) ─────────────────────────────
+const SPEECH_CAPTURE_SECONDS = 10
+const speech = ref<{
+  loading: boolean
+  text: string
+  bufferSeconds: number
+  connected: boolean
+  error: string
+}>({ loading: false, text: '', bufferSeconds: 0, connected: false, error: '' })
+
+async function captureSpeech() {
+  if (speech.value.loading) return
+  speech.value = { loading: true, text: '', bufferSeconds: 0, connected: false, error: '' }
+  try {
+    const resp = await fetch('/api/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: 'capture', seconds: SPEECH_CAPTURE_SECONDS }),
+    })
+    const data = await resp.json()
+    if (!resp.ok) {
+      speech.value.error = data.error || ('HTTP ' + resp.status)
+      return
+    }
+    speech.value.text = data.text || ''
+    speech.value.bufferSeconds = data.bufferSeconds || 0
+    speech.value.connected = !!data.connected
+    if (data.connected === false) {
+      speech.value.error = 'STT-сервер не запущен'
+    }
+  } catch (e) {
+    speech.value.error = 'Ошибка: ' + String(e)
+  } finally {
+    speech.value.loading = false
+  }
+}
+
+function clearSpeech() {
+  speech.value = { loading: false, text: '', bufferSeconds: 0, connected: false, error: '' }
+}
+
+function insertSpeechText() {
+  if (!speech.value.text) return
+  text.value = speech.value.text
+  clearSpeech()
+  autoResize()
+  textarea.value?.focus()
+}
 </script>
 
 <template>
@@ -106,17 +155,52 @@ function autoResize() {
     <textarea
       ref="textarea"
       v-model="text"
+      :disabled="props.readOnly"
       placeholder="Message or /command..."
       rows="1"
       @keydown="onKeydown"
       @input="onInput"
     ></textarea>
+
+    <!-- Speech capture: блок с текстом из речи -->
+    <button
+      v-if="speech.loading || speech.text || speech.error"
+      class="mic-btn active"
+      :disabled="speech.loading"
+      @click="speech.loading ? undefined : clearSpeech()"
+      title="Сбросить распознанный текст"
+    >🎤</button>
+    <button
+      v-else
+      class="mic-btn"
+      :disabled="props.readOnly"
+      @click="captureSpeech"
+      title="Распознать последние {{ SPEECH_CAPTURE_SECONDS }} сек речи (из кольцевого буфера)"
+    >🎤</button>
+
     <button v-if="props.sending" class="stop-btn" @click="emit('send', '/stop')" title="Остановить генерацию">
       ■
     </button>
-    <button class="send-btn" @click="handleSend" :disabled="!text.trim() || props.sending">
+    <button class="send-btn" @click="handleSend" :disabled="props.readOnly || !text.trim() || props.sending">
       ↑
     </button>
+
+    <!-- Распознанный текст из речи -->
+    <div v-if="speech.loading || speech.text || speech.error" class="speech-block">
+      <div v-if="speech.loading" class="speech-row">
+        <span class="speech-spinner">●</span>
+        <span>Распознаю речь…</span>
+      </div>
+      <div v-else-if="speech.error" class="speech-row speech-error">
+        <span>⚠ {{ speech.error }}</span>
+        <button class="speech-close" @click="clearSpeech()">✕</button>
+      </div>
+      <div v-else class="speech-row">
+        <span class="speech-label">🎤 {{ speech.text }}</span>
+        <button class="speech-use" @click="insertSpeechText()">Вставить в сообщение</button>
+        <button class="speech-close" @click="clearSpeech()">✕</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -225,4 +309,95 @@ textarea::placeholder { color: var(--color-text-muted); }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ── Speech capture (текст из речи) ─────────────────────────── */
+.mic-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+.mic-btn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  transform: scale(1.08);
+}
+.mic-btn.active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: rgba(124, 92, 255, 0.12);
+}
+.mic-btn:disabled { opacity: 0.5; cursor: default; }
+
+.speech-block {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: var(--space-4);
+  right: var(--space-4);
+  z-index: 150;
+  background: #12122a;
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  border-radius: 10px;
+  padding: 8px 12px;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+  animation: speech-pop 0.18s ease;
+}
+@keyframes speech-pop {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.speech-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  line-height: 1.45;
+}
+.speech-label {
+  flex: 1;
+  word-break: break-word;
+  max-height: 84px;
+  overflow-y: auto;
+}
+.speech-spinner {
+  color: var(--color-accent);
+  animation: speech-pulse 1s infinite;
+}
+@keyframes speech-pulse {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 1; }
+}
+.speech-error { color: #ff8888; }
+.speech-use {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-accent);
+  background: rgba(124, 92, 255, 0.15);
+  color: var(--color-accent-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.speech-use:hover { background: rgba(124, 92, 255, 0.3); }
+.speech-close {
+  flex-shrink: 0;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s, color 0.15s;
+}
+.speech-close:hover { background: rgba(255, 68, 68, 0.15); color: #ff8888; }
 </style>

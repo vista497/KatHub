@@ -22,6 +22,7 @@ class PromptManager;
 }
 class HermesApiClient;
 class HermesCli;
+class SpeechManager;
 
 // Composition root for the KatHub application.
 // Owns all major subsystems and wires them together.
@@ -104,6 +105,9 @@ private:
     // Subsystems (Hand mode).
     std::unique_ptr<KatHub::HandWindow> handWindow_;
 
+    // Speech layer (STT + TTS) — Hand mode only (needs audio devices).
+    std::unique_ptr<SpeechManager> speechManager_;
+
     // Hermes Agent API client (shared across handlers).
     std::shared_ptr<HermesApiClient> hermesApi_;
     // Hermes CLI client (for chat + sessions — direct state.db access).
@@ -116,4 +120,13 @@ private:
     static constexpr int WATCHDOG_BACKOFF_SEC = 3;
     void watchdogStartChild();
     void watchdogOnChildFinished(int exitCode, int exitStatus);
+
+    // ── Voice wake-word gate ────────────────────────────────────────────
+    // STT расшифровывает непрерывно, но в LLM ничего не уходит, пока в
+    // распознанном тексте нет ключевого слова (wake word).
+    void onSpeechRecognized(const QString &text, qint64 timestampMs);
+    void onVoiceLlmReply(const QString &reply);
+    QString wakeWord_ = QStringLiteral("катя");
+    std::atomic<bool> voiceLlmBusy_{false};
+    std::string voiceSessionId_;
 };

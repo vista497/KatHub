@@ -68,7 +68,10 @@ onUnmounted(() => {
 
 <template>
   <div class="system-panel">
-    <h2 class="panel-title">📊 Система</h2>
+    <div class="panel-header">
+      <span class="ops-eyebrow">System</span>
+      <span class="ops-title">Система</span>
+    </div>
 
     <div v-if="loading && !system" class="state-msg">Загрузка…</div>
     <div v-else-if="error && !system" class="state-msg error-text">{{ error }}</div>
@@ -89,7 +92,7 @@ onUnmounted(() => {
       <!-- Hermes API status -->
       <div class="hermes-card" :class="{ dead: !system.hermes.alive }">
         <div class="hermes-header">
-          <span class="hermes-title">🔗 Hermes API</span>
+          <span class="hermes-title">Hermes API</span>
           <span class="status-dot" :class="system.hermes.alive ? 'alive' : 'dead'">
             {{ system.hermes.alive ? 'ONLINE' : 'OFFLINE' }}
           </span>
@@ -128,24 +131,46 @@ onUnmounted(() => {
 <style scoped>
 .system-panel {
   padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-.panel-title {
-  font-size: var(--font-size-lg);
-  font-weight: 700;
-  color: var(--color-text-primary);
-  margin-bottom: var(--space-4);
+.panel-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ops-eyebrow {
+  font: 500 var(--font-size-xs) var(--font-mono);
+  color: var(--text-muted); letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+.ops-title {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 500; color: var(--text-primary);
+  line-height: 1; letter-spacing: -0.02em;
 }
 
 .state-msg {
   padding: var(--space-4);
-  color: var(--color-text-secondary);
+  color: var(--text-muted);
   text-align: center;
-  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  opacity: 0.5;
 }
 
 .error-text {
-  color: #f87171;
+  color: var(--brand-red);
+  opacity: 1;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 /* ── Card row ───────────────────────────────── */
@@ -157,52 +182,60 @@ onUnmounted(() => {
 }
 
 .card-row.ports {
-  margin-top: var(--space-3);
+  margin-top: 0;
+  padding-bottom: var(--space-2);
 }
 
 .status-card, .port-card {
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-3);
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur-heavy);
+  -webkit-backdrop-filter: var(--blur-heavy);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
 
 .card-label {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
+  font: 500 var(--font-size-xs) var(--font-mono);
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--letter-spacing-wide);
 }
 
 .card-value {
-  font-size: var(--font-size-base);
-  color: var(--color-text-primary);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.5vw, 28px);
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.1;
 }
 
 .card-value.mono {
   font-family: var(--font-mono);
-  color: var(--color-accent-secondary);
+  font-size: var(--font-size-lg);
+  color: var(--brand-cyan);
 }
 
 .card-value.accent {
-  color: var(--color-accent);
+  color: var(--brand-violet-glow);
 }
 
 /* ── Hermes card ────────────────────────────── */
 .hermes-card {
-  background: var(--color-bg-tertiary);
-  border: 1px solid rgba(74, 222, 128, 0.2);
-  border-radius: var(--radius-md);
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur-heavy);
+  -webkit-backdrop-filter: var(--blur-heavy);
+  border: 1px solid rgba(94, 226, 181, 0.2);
+  border-radius: var(--radius-lg);
   padding: var(--space-4);
   transition: border-color var(--transition-fast);
 }
 
 .hermes-card.dead {
-  border-color: rgba(248, 113, 113, 0.3);
+  border-color: rgba(242, 109, 109, 0.3);
 }
 
 .hermes-header {
@@ -213,27 +246,50 @@ onUnmounted(() => {
 }
 
 .hermes-title {
-  font-size: var(--font-size-sm);
+  font-family: var(--font-display);
+  font-size: 15px;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
 }
 
 .status-dot {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 9px var(--font-mono);
+  letter-spacing: var(--letter-spacing-wide);
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+}
+
+.status-dot::before {
+  content: '';
+  width: 6px;
+  height: 6px;
   border-radius: var(--radius-full);
 }
 
 .status-dot.alive {
-  background: rgba(74, 222, 128, 0.15);
-  color: #4ade80;
+  background: rgba(94, 226, 181, 0.12);
+  color: var(--brand-mint);
+  border: 1px solid rgba(94, 226, 181, 0.25);
+}
+
+.status-dot.alive::before {
+  background: var(--brand-mint);
+  box-shadow: 0 0 6px var(--brand-mint);
 }
 
 .status-dot.dead {
-  background: rgba(248, 113, 113, 0.15);
-  color: #f87171;
+  background: rgba(242, 109, 109, 0.12);
+  color: var(--brand-red);
+  border: 1px solid rgba(242, 109, 109, 0.25);
+}
+
+.status-dot.dead::before {
+  background: var(--brand-red);
+  box-shadow: 0 0 6px rgba(242, 109, 109, 0.4);
 }
 
 .hermes-details {
@@ -246,25 +302,33 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
 }
 
 .detail-label {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
+  font: 500 var(--font-size-xs) var(--font-mono);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
 }
 
 .detail-value {
   font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
+  color: var(--text-primary);
+  word-break: break-all;
+  text-align: right;
 }
 
 .detail-value.mono {
   font-family: var(--font-mono);
   font-size: 11px;
+  color: var(--text-muted);
 }
 
 .detail-value.accent {
-  color: var(--color-accent);
+  color: var(--brand-cyan);
   font-weight: 600;
+  font-family: var(--font-mono);
 }
 </style>

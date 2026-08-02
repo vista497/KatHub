@@ -12,11 +12,11 @@ interface KanbanTask {
 }
 
 const STATUS_COLUMNS = [
-  { key: 'todo', label: 'Ожидает', color: '#666' },
-  { key: 'ready', label: 'Готово к работе', color: '#f0ad4e' },
-  { key: 'running', label: 'В работе', color: '#5bc0de' },
-  { key: 'done', label: 'Выполнено', color: '#5ce082' },
-  { key: 'blocked', label: 'Заблокировано', color: '#ff6b6b' },
+  { key: 'todo', label: 'Ожидает', color: 'var(--text-muted)' },
+  { key: 'ready', label: 'Готово к работе', color: 'var(--brand-amber)' },
+  { key: 'running', label: 'В работе', color: 'var(--brand-cyan)' },
+  { key: 'done', label: 'Выполнено', color: 'var(--brand-mint)' },
+  { key: 'blocked', label: 'Заблокировано', color: 'var(--brand-red)' },
 ]
 
 // ── State ────────────────────────────────────────────────────────
@@ -113,13 +113,16 @@ onUnmounted(() => {
 <template>
   <div class="kanban-panel">
     <div class="panel-header">
-      <h2 class="panel-title">📋 Задачи</h2>
+      <div class="panel-header-left">
+        <span class="ops-eyebrow">Tasks</span>
+        <span class="ops-title">Канбан</span>
+      </div>
       <button class="btn btn-ghost" @click="loadTasks" :disabled="loading">↻ Обновить</button>
     </div>
 
     <div v-if="error" class="error-banner">{{ error }}</div>
 
-    <div v-if="loading && tasks.length === 0" class="loading-state">Загрузка...</div>
+    <div v-if="loading && tasks.length === 0" class="loading-state">Загрузка…</div>
 
     <div v-else-if="tasks.length === 0" class="empty-state">
       <p>Нет задач в канбане.</p>
@@ -136,7 +139,7 @@ onUnmounted(() => {
         @dragleave="dragOverCol === col.key && (dragOverCol = null)"
         @drop.prevent="onDrop(col.key)"
       >
-        <div class="column-header" :style="{ borderTopColor: col.color }">
+        <div class="column-header">
           <span class="column-dot" :style="{ background: col.color }"></span>
           <span class="column-label">{{ col.label }}</span>
           <span class="column-count">{{ tasksByStatus(col.key).value.length }}</span>
@@ -168,118 +171,135 @@ onUnmounted(() => {
 
 <style scoped>
 .kanban-panel {
-  height: 100vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   font-family: var(--font-sans);
+  padding: var(--space-4);
+  gap: var(--space-3);
 }
 
 .panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
-  background: var(--color-bg-secondary);
-  border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 
-.panel-title {
-  font-size: 18px;
-  font-weight: 700;
-  margin: 0;
+.panel-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ops-eyebrow {
+  font: 500 var(--font-size-xs) var(--font-mono);
+  color: var(--text-muted); letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+.ops-title {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 500; color: var(--text-primary);
+  line-height: 1; letter-spacing: -0.02em;
 }
 
 /* ── Board layout ──────────────────────────── */
 .board {
   flex: 1;
   display: flex;
-  gap: 0;
+  gap: var(--space-3);
   overflow-x: auto;
-  padding: 16px;
+  padding-bottom: var(--space-2);
 }
 
 .column {
   flex: 1;
-  min-width: 200px;
-  max-width: 320px;
+  min-width: 220px;
+  max-width: 340px;
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-secondary);
-  border-radius: 8px;
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur-heavy);
+  -webkit-backdrop-filter: var(--blur-heavy);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  margin-right: 12px;
-  border: 2px solid transparent;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
-.column:last-child { margin-right: 0; }
-
 .column.drag-over {
-  border-color: var(--color-accent, rgba(124, 92, 255, 0.6));
-  background: rgba(124, 92, 255, 0.06);
+  border-color: var(--brand-violet);
+  background: rgba(139, 92, 246, 0.08);
 }
 
 .column-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  border-top: 3px solid #666;
-  background: rgba(255,255,255,0.02);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border-glass);
   flex-shrink: 0;
 }
 
 .column-dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
 }
 
 .column-label {
-  font-size: 13px;
+  font-family: var(--font-display);
+  font-size: 12px;
   font-weight: 600;
   flex: 1;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
 }
 
 .column-count {
-  font-size: 12px;
-  color: var(--color-text-muted);
-  background: rgba(255,255,255,0.05);
-  padding: 2px 8px;
-  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
 }
 
 .column-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: var(--space-2);
   min-height: 80px;
 }
 
 .column-empty {
   text-align: center;
-  color: var(--color-text-muted);
-  padding: 24px;
+  color: var(--text-muted);
+  padding: var(--space-6);
   font-size: 13px;
+  opacity: 0.4;
 }
 
 /* ── Task cards ────────────────────────────── */
 .task-card {
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  padding: 10px 12px;
-  margin-bottom: 8px;
-  transition: border-color 0.15s, opacity 0.15s, transform 0.15s;
+  background: var(--bg-glass-solid);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  transition: border-color var(--transition-fast), opacity var(--transition-fast), transform var(--transition-fast);
   cursor: grab;
 }
 
 .task-card:hover {
-  border-color: rgba(124, 92, 255, 0.3);
+  border-color: rgba(139, 92, 246, 0.4);
 }
 
 .task-card:active {
@@ -289,35 +309,41 @@ onUnmounted(() => {
 .task-card.dragging {
   opacity: 0.45;
   transform: scale(0.97);
-  border-color: var(--color-accent, rgba(124, 92, 255, 0.7));
+  border-color: var(--brand-violet);
 }
 
 .task-title {
+  font-family: var(--font-display);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.4;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-2);
   word-break: break-word;
+  color: var(--text-primary);
 }
 
 .task-meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .task-assignee {
-  font-size: 11px;
-  color: var(--color-accent-secondary);
-  background: rgba(92, 224, 255, 0.1);
-  padding: 1px 6px;
-  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--brand-cyan);
+  background: rgba(125, 211, 252, 0.1);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-full);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
 }
 
 .task-time {
-  font-size: 10px;
-  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-muted);
 }
 
 /* ── States ────────────────────────────────── */
@@ -326,7 +352,12 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  opacity: 0.5;
 }
 
 .empty-state {
@@ -335,31 +366,37 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  color: var(--color-text-muted);
-  padding: 48px;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  padding: var(--space-8);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
 }
 
 .hint {
   font-size: 12px;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .hint code {
-  background: var(--color-bg-tertiary);
+  background: var(--bg-glass-solid);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 11px;
+  color: var(--brand-cyan);
 }
 
 .error-banner {
-  padding: 10px 16px;
-  margin: 0 24px;
-  background: rgba(255,107,107,0.1);
-  border: 1px solid rgba(255,107,107,0.25);
-  border-radius: 4px;
-  color: #ff6b6b;
+  padding: var(--space-2) var(--space-4);
+  background: rgba(242, 109, 109, 0.1);
+  border: 1px solid rgba(242, 109, 109, 0.25);
+  border-radius: var(--radius-md);
+  color: var(--brand-red);
   font-size: 13px;
 }
 
@@ -369,12 +406,14 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   padding: 6px 14px;
-  border-radius: 4px;
-  border: 1px solid transparent;
-  font-size: 13px;
-  font-family: var(--font-sans);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-glass);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--transition-fast);
   white-space: nowrap;
 }
 
@@ -382,12 +421,12 @@ onUnmounted(() => {
 
 .btn-ghost {
   background: transparent;
-  color: var(--color-text-secondary);
-  border-color: var(--color-border);
+  color: var(--text-muted);
+  border-color: var(--border-glass);
 }
 
 .btn-ghost:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  border-color: var(--brand-violet);
+  color: var(--brand-violet-glow);
 }
 </style>

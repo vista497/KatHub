@@ -22,11 +22,14 @@
 #include "ModelsHandler.h"
 #include "SystemHandler.h"
 #include "HealthHandler.h"
+#include "CreditsHandler.h"
 #include "AgentsHandler.h"
 #include "AgentChatHandler.h"
 #include "CronHandler.h"
 #include "SkillsHandler.h"
 #include "KanbanHandler.h"
+#include "speech/SpeechManager.h"
+#include "handlers/SpeechHandler.h"
 #include "httplib.h"
 #include "ai/AIController.h"
 #include "ai/Conversation.h"
@@ -39,6 +42,9 @@
 #include <QProcess>
 #include <QJsonDocument>
 #include <QJsonObject>
+
+#include <atomic>
+#include <thread>
 
 #include <QApplication>
 #include <QCoreApplication>
@@ -276,6 +282,18 @@ void KatHubApp::init()
     if (mode_ == Mode::Server) {
         std::cout << "KatHub starting in Server mode..." << std::endl;
 
+        // File logging: kathub-backend.log рядом с exe — логи отправки
+        // сообщений ([ChatSend]) и ошибки можно анализировать из файла,
+        // не полагаясь на UI/консоль.
+        {
+            QString logPath = QCoreApplication::applicationDirPath()
+                              + QStringLiteral("/kathub-backend.log");
+            KatHub::Logger::instance().init(KatHub::LogLevel::Debug,
+                                            logPath.toStdString());
+            LOG_INFO("[ChatSend] log file initialized: "
+                     + logPath.toStdString());
+        }
+
         // Create PluginLoader (loads dynamic plugins).
         pluginLoader_ = std::make_unique<PluginLoader>(PluginRegistry::instance());
 
@@ -435,6 +453,13 @@ void KatHubApp::init()
             std::cout << "Registered handler: " << hh->route() << std::endl;
         }
 
+        // ── Credits handler ────────────────────────────────────
+        {
+            auto *ch = new CreditsHandler();
+            httpServer_->registerHandler(ch);
+            std::cout << "Registered handler: " << ch->route() << std::endl;
+        }
+
         // ── Agents handler ─────────────────────────────────────
         {
             auto *ah = new AgentsHandler();
@@ -532,6 +557,15 @@ void KatHubApp::init()
 
     } else {
         std::cout << "KatHub starting in Hand mode..." << std::endl;
+        // File logging: тот же kathub-backend.log рядом с exe (см. Server mode).
+        {
+            QString logPath = QCoreApplication::applicationDirPath()
+                              + QStringLiteral("/kathub-backend.log");
+            KatHub::Logger::instance().init(KatHub::LogLevel::Debug,
+                                            logPath.toStdString());
+            LOG_INFO("[ChatSend] log file initialized: "
+                     + logPath.toStdString());
+        }
 
         // Create the event bus.
         signalHub_ = std::make_unique<KatHub::SignalHub>();
@@ -625,6 +659,12 @@ void KatHubApp::init()
             sh->setStartTime(httpServer_->startTime());
             sh->setPorts(port_, wsPort_);
             httpServer_->registerHandler(sh);
+        }
+
+        // ── Credits handler ────────────────────────────────────
+        {
+            auto *ch = new CreditsHandler();
+            httpServer_->registerHandler(ch);
         }
 
         // ── Agents handler ─────────────────────────────────────
@@ -759,6 +799,103 @@ void KatHubApp::init()
                 }
             });
 
+        // ── Speech layer (STT + TTS) — Hand mode only ─────────────
+        {
+            speechManager_ = std::make_unique<SpeechManager>();
+            speechManager_->setEnabled(true);
+            speechManager_->connectTTSSignals();
+
+            // Распознанная речь → фронту (topic: speech.recognized) + wake-word гейт
+            QObject::connect(speechManager_.get(),
+                &SpeechManager::speechRecognizedWithTimestamp,
+                [this](const QString &text, qint64 timestampMs) {
+                    onSpeechRecognized(text, timestampMs);
+                });
+            QObject::connect(speechManager_.get(),
+                &SpeechManager::speechError,
+                [this](const QString &error) {
+                    QJsonObject data;
+                    data[QStringLiteral("error")] = error;
+                    signalHub_->publish(QStringLiteral("speech.error"), data);
+                });
+
+            // TTS-статус → фронту
+            QObject::connect(speechManager_.get(),
+                &SpeechManager::ttsPlaybackStarted,
+                [this]() {
+                    signalHub_->publish(QStringLiteral("speech.ttsStarted"),
+                                       QJsonObject());
+                });
+            QObject::connect(speechManager_.get(),
+                &SpeechManager::ttsPlaybackFinished,
+                [this]() {
+                    signalHub_->publish(QStringLiteral("speech.ttsFinished"),
+                                       QJsonObject());
+                });
+
+            // Команда от фронта: озвучить текст → StartTTS
+            signalHub_->subscribe(QStringLiteral("speech.speak"),
+                [this](const QJsonObject &data) {
+                    const QString text =
+                        data.value(QStringLiteral("text")).toString();
+                    if (!text.isEmpty() && speechManager_) {
+                        speechManager_->StartTTS(text);
+                    }
+                });
+
+            // Команда от фронта: распознать последние N секунд из буфера
+            signalHub_->subscribe(QStringLiteral("speech.capture"),
+                [this](const QJsonObject &data) {
+                    if (!speechManager_) return;
+                    const int seconds =
+                        data.value(QStringLiteral("seconds")).toInt(30);
+                    const QString text =
+                        speechManager_->transcribeLastSeconds(seconds);
+                    QJsonObject result;
+                    result[QStringLiteral("text")] = text;
+                    result[QStringLiteral("seconds")] = seconds;
+                    signalHub_->publish(QStringLiteral("speech.captured"),
+                                       result);
+                });
+
+            // Команда от фронта: PTT — включить/выключить стриминг в STT
+            signalHub_->subscribe(QStringLiteral("speech.ptt"),
+                [this](const QJsonObject &data) {
+                    if (!speechManager_) return;
+                    const bool pressed =
+                        data.value(QStringLiteral("pressed")).toBool(false);
+                    if (pressed) {
+                        speechManager_->startSpeech();
+                    } else {
+                        speechManager_->stopSpeech();
+                    }
+                });
+
+            // Результат буферизованного распознавания → фронту
+            QObject::connect(speechManager_.get(),
+                &SpeechManager::bufferedTranscriptionReady,
+                [this](const QString &text, int windowSeconds) {
+                    QJsonObject data;
+                    data[QStringLiteral("text")] = text;
+                    data[QStringLiteral("seconds")] = windowSeconds;
+                    signalHub_->publish(QStringLiteral("speech.captured"),
+                                       data);
+                });
+
+            // По умолчанию — буферизованный захват: микрофон пишет в кольцевой
+            // буфер, в STT ничего не уходит до команды speech.capture / PTT.
+            speechManager_->startBufferedCapture();
+
+            // HTTP-канал для речевых команд (фронт работает HTTP-поллингом,
+            // WS в Hand mode не создаётся).
+            {
+                auto *sph = new SpeechHandler();
+                sph->setSpeechManager(speechManager_.get());
+                httpServer_->registerHandler(sph);
+                std::cout << "Registered handler: " << sph->route() << std::endl;
+            }
+        }
+
         // Emit system.ready event.
         {
             QJsonObject readyPayload;
@@ -888,4 +1025,105 @@ void KatHubApp::watchdogOnChildFinished(int exitCode, int exitStatus)
     QTimer::singleShot(backoff * 1000, [this]() {
         watchdogStartChild();
     });
+}
+
+// ============================================================================
+// Voice wake-word gate
+// ============================================================================
+// STT расшифровывает непрерывно (стриминг в WhisperWrapper). Сюда приходит
+// каждый распознанный фрагмент. Текст ВСЕГДА публикуется фронту (субтитры),
+// но в LLM уходит ТОЛЬКО при наличии ключевого слова (wake word).
+void KatHubApp::onSpeechRecognized(const QString &text, qint64 timestampMs)
+{
+    // 1. Субтитры: распознанный текст всегда виден фронту.
+    {
+        QJsonObject data;
+        data[QStringLiteral("text")] = text;
+        data[QStringLiteral("timestamp")] = timestampMs;
+        signalHub_->publish(QStringLiteral("speech.recognized"), data);
+    }
+
+    // 2. Wake-word гейт: без ключевого слова в LLM НЕ уходит ничего.
+    if (voiceLlmBusy_.load() || text.isEmpty()) {
+        return;
+    }
+    if (!text.contains(wakeWord_, Qt::CaseInsensitive)) {
+        return;
+    }
+
+    // 3. Ключевое слово есть — отправляем в LLM.
+    voiceLlmBusy_.store(true);
+
+    if (!hermesApi_) {
+        QJsonObject data;
+        data[QStringLiteral("error")] = QStringLiteral("API client not configured");
+        signalHub_->publish(QStringLiteral("speech.llmError"), data);
+        voiceLlmBusy_.store(false);
+        return;
+    }
+
+    // Voice-сессия: создаём один раз, дальше переиспользуем (контекст диалога).
+    if (voiceSessionId_.empty()) {
+        std::string createResp = hermesApi_->createSession();
+        QJsonParseError cerr;
+        QJsonDocument cdoc = QJsonDocument::fromJson(
+            QByteArray::fromStdString(createResp), &cerr);
+        if (cerr.error == QJsonParseError::NoError && cdoc.isObject()) {
+            QJsonObject o = cdoc.object();
+            if (o.contains("session_id"))
+                voiceSessionId_ = o.value("session_id").toString().toStdString();
+            else if (o.contains("session"))
+                voiceSessionId_ = o["session"].toObject().value("id").toString().toStdString();
+            else if (o.contains("id"))
+                voiceSessionId_ = o.value("id").toString().toStdString();
+        }
+    }
+
+    const std::string sessionId = voiceSessionId_;
+    const std::string promptStr = text.toStdString();
+    auto api = hermesApi_;
+
+    std::thread([this, api, sessionId, promptStr]() {
+        std::string result;
+        if (!sessionId.empty()) {
+            result = api->chatCompletions(sessionId, promptStr);
+        } else {
+            result = "ERROR: Failed to create voice session";
+        }
+        QString qResult = QString::fromStdString(result);
+        // KatHubApp не QObject — invokeMethod через qApp (главный поток)
+        QMetaObject::invokeMethod(qApp, [this, qResult]() {
+            onVoiceLlmReply(qResult);
+        }, Qt::QueuedConnection);
+    }).detach();
+}
+
+// Ответ LLM на голосовой запрос (после ключевого слова).
+void KatHubApp::onVoiceLlmReply(const QString &reply)
+{
+    voiceLlmBusy_.store(false);
+
+    if (reply.isEmpty()) {
+        QJsonObject data;
+        data[QStringLiteral("error")] = QStringLiteral("Empty LLM reply");
+        signalHub_->publish(QStringLiteral("speech.llmError"), data);
+        return;
+    }
+
+    if (reply.startsWith(QStringLiteral("ERROR:"))) {
+        QJsonObject data;
+        data[QStringLiteral("error")] = reply.mid(6).trimmed();
+        signalHub_->publish(QStringLiteral("speech.llmError"), data);
+        return;
+    }
+
+    // Ответ фронту + озвучка.
+    {
+        QJsonObject data;
+        data[QStringLiteral("text")] = reply;
+        signalHub_->publish(QStringLiteral("speech.llmReply"), data);
+    }
+    if (speechManager_) {
+        speechManager_->StartTTS(reply);
+    }
 }

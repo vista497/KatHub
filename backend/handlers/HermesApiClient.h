@@ -27,6 +27,13 @@ public:
     // POST /api/sessions/{id}/chat → synchronous chat (blocking)
     std::string chat(const std::string& sessionId, const std::string& message);
 
+    // POST /v1/chat/completions (OpenAI-compatible, SSE) — resumes the
+    // session via the X-Hermes-Session-Id header (exactly like
+    // AI_ControllerApp does). Returns the accumulated assistant text, or a
+    // JSON {"error": ...} body on transport/HTTP failure.
+    std::string chatCompletions(const std::string& sessionId,
+                                const std::string& message);
+
     // DELETE /api/sessions/{id}
     std::string deleteSession(const std::string& sessionId);
 

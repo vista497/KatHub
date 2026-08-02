@@ -29,6 +29,45 @@ public:
     /// Plugins directory (DLL-based providers).
     static QString pluginsDir();
 
+    // ── Speech (STT/TTS) paths ─────────────────────────────────
+
+    /// Speech scripts root: backend/resources/speech (dev tree) or
+    /// <exe_dir>/resources/speech (installed build).
+    static QString speechScriptsDir();
+
+    /// STT scripts dir (stt_streaming_server.py, requirements.txt).
+    static QString sttScriptsDir();
+
+    /// TTS scripts dir (TTSNodeNew.py, requirements.txt).
+    static QString ttsScriptsDir();
+
+    /// Path to STT streaming server script.
+    static QString sttStreamingServerPath();
+
+    /// Path to TTS node server script.
+    static QString ttsNodeServerPath();
+
+    /// Python venv dir for STT (created on first run by PythonEnvironment).
+    static QString pythonVenvDir();
+
+    /// venv python.exe (STT).
+    static QString pythonExePath();
+
+    /// venv pip.exe (STT).
+    static QString pipExePath();
+
+    /// STT requirements.txt path.
+    static QString sttRequirementsPath();
+
+    /// Python venv dir for TTS.
+    static QString ttsVenvDir();
+
+    /// venv python.exe (TTS).
+    static QString ttsPythonExePath();
+
+    /// faster-whisper model dir (STT-Base).
+    static QString sttModelPath();
+
     // ── Custom path overrides (persisted in QSettings) ──────
 
     static QString customPath(const QString &key);

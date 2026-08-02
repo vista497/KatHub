@@ -14,6 +14,8 @@ target_sources(kathub-handlers PRIVATE
     ModelsHandler.h ModelsHandler.cpp
     SystemHandler.h SystemHandler.cpp
     HealthHandler.h HealthHandler.cpp
+    CreditsHandler.h CreditsHandler.cpp
+    SpeechHandler.h SpeechHandler.cpp
     AgentsHandler.h AgentsHandler.cpp
     AgentChatHandler.h AgentChatHandler.cpp
     CronHandler.h CronHandler.cpp
@@ -29,5 +31,5 @@ target_include_directories(kathub-handlers PUBLIC
 )
 
 target_link_libraries(kathub-handlers PUBLIC
-    kathub-domain kathub-host kathub-core kathub-ai kathub-prompts Qt6::Core
+    kathub-domain kathub-host kathub-core kathub-ai kathub-prompts Qt6::Core Qt6::Network
 )

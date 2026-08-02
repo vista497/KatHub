@@ -4,6 +4,7 @@ add_subdirectory(ai)
 add_subdirectory(prompts)
 add_subdirectory(host)
 add_subdirectory(core)
+add_subdirectory(speech)
 add_subdirectory(transport)
 add_subdirectory(handlers)
 add_subdirectory(ui)
@@ -17,6 +18,7 @@ target_link_libraries(kathub-backend PRIVATE
     kathub-transport
     kathub-handlers
     kathub-core
+    kathub-speech
     kathub-config
     kathub-ui
     kathub-ai

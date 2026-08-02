@@ -153,8 +153,8 @@ void HermesSessionsHandler::handleWithContext(const char*, const char* path, con
                     o["session_id"] = id;
                     o["title"] = title;
                     o["workspace"] = QString();
-                    o["last_active"] = s.value("updated_at").toString();
-                    o["updated_at"] = s.value("updated_at").toString();
+                    o["last_active"] = s.value("last_active").toDouble(0);
+                    o["updated_at"] = s.value("last_active").toDouble(0);
                     o["source"] = s.value("source").toString();
                     o["message_count"] = s.value("message_count").toInt(0);
                     out.append(o);

@@ -38,6 +38,15 @@ interface AgentInfo {
   model: string | null
   active: boolean
 }
+interface SpeechStatus {
+  enabled: boolean
+  streaming: boolean
+  bufferSeconds?: number
+  initialized?: boolean
+  connected?: boolean
+  text?: string
+  lastText?: string
+}
 
 const AGENT_COLORS: Record<string, string> = {
   default: 'var(--brand-violet)',
@@ -51,10 +60,71 @@ const AGENT_COLORS: Record<string, string> = {
 // ── Состояние ────────────────────────────────────────────────────
 const system = ref<SystemData | null>(null)
 const health = ref<HealthData | null>(null)
+const credits = ref<number | null>(null)
+const creditsError = ref<string | null>(null)
 const sessions = ref<SessionInfo[]>([])
 const agents = ref<AgentInfo[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
+
+// ── Speech: распознавание речи (whisper STT) ───────────────────
+const SPEECH_CAPTURE_SECONDS = 10
+const speech = ref<{
+  status: SpeechStatus | null
+  loading: boolean
+  lastText: string
+  lastAt: string
+  error: string | null
+}>({ status: null, loading: false, lastText: '', lastAt: '', error: null })
+
+async function loadSpeechStatus() {
+  try {
+    const resp = await fetch('/api/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: 'status' }),
+    })
+    const data = await resp.json()
+    speech.value.status = data as SpeechStatus
+    speech.value.error = null
+    // Живой текст из непрерывного стрима (lastText отдаёт backend)
+    const live = (data.lastText || '').trim()
+    if (live) {
+      speech.value.lastText = live
+      speech.value.lastAt = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+    }
+  } catch (e: any) {
+    speech.value.error = e.message || 'STT недоступен'
+  }
+}
+
+async function captureSpeech() {
+  if (speech.value.loading) return
+  speech.value.loading = true
+  speech.value.error = null
+  try {
+    const resp = await fetch('/api/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: 'capture', seconds: SPEECH_CAPTURE_SECONDS }),
+    })
+    const data = await resp.json()
+    speech.value.status = data as SpeechStatus
+    const text = (data.text || '').trim()
+    if (text) {
+      speech.value.lastText = text
+      speech.value.lastAt = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+    } else if (data.connected === false) {
+      speech.value.error = 'STT-сервер не запущен'
+    } else {
+      speech.value.error = 'Речь не распознана (тишина в микрофоне?)'
+    }
+  } catch (e: any) {
+    speech.value.error = e.message || 'Ошибка распознавания'
+  } finally {
+    speech.value.loading = false
+  }
+}
 
 // Live Ops: текущая директива (циклично по сессиям)
 const directiveText = ref('')
@@ -66,6 +136,7 @@ const contextLast = ref('')
 const contextIdx = ref(0)
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let speechPollTimer: ReturnType<typeof setInterval> | null = null
 let directiveTimer: ReturnType<typeof setInterval> | null = null
 let contextTimer: ReturnType<typeof setInterval> | null = null
 
@@ -160,7 +231,6 @@ const healthOk = computed(() => {
 })
 
 const radarDots = computed(() => {
-  const total = agents.value.length || 1
   const cx = 70, cy = 70, maxR = 58
   const slice = (2 * Math.PI) / Math.max(agents.value.length, 1)
   return agents.value.map((a, i) => {
@@ -182,14 +252,21 @@ async function loadOverview(showSpinner = false) {
   if (showSpinner) loading.value = true
   error.value = null
   try {
-    const [sysResp, healthResp, sessResp, agentsResp] = await Promise.all([
+    const [sysResp, healthResp, sessResp, agentsResp, creditsResp] = await Promise.all([
       fetch('/api/system').then(r => r.ok ? r.json() : null),
       fetch('/api/health').then(r => r.ok ? r.json() : null),
       fetch('/api/hermes/sessions').then(r => r.ok ? r.json() : null),
       fetch('/api/agents').then(r => r.ok ? r.json() : null),
+      fetch('/api/credits').then(r => r.ok ? r.json() : null),
     ])
     if (sysResp) system.value = sysResp as SystemData
     if (healthResp) health.value = healthResp as HealthData
+    if (creditsResp) {
+      credits.value = typeof creditsResp.credits === 'number' ? creditsResp.credits : null
+      creditsError.value = null
+    } else {
+      creditsError.value = 'недоступен'
+    }
     if (sessResp) {
       const raw: any[] = Array.isArray(sessResp) ? sessResp : (sessResp.data || [])
       sessions.value = raw
@@ -213,6 +290,7 @@ async function loadOverview(showSpinner = false) {
     }
     await nextTick()
     renderSparkline()
+    await loadSpeechStatus()
   } catch (e: any) {
     error.value = e.message || 'Не удалось загрузить данные'
   } finally {
@@ -360,11 +438,15 @@ onMounted(() => {
     cycleContext()
   })
   pollTimer = setInterval(() => loadOverview(), 5000)
+  speechPollTimer = setInterval(() => loadSpeechStatus(), 2000)
   directiveTimer = setInterval(cycleDirective, 4000)
   contextTimer = setInterval(cycleContext, 3000)
+  loadSpeechStatus()
 })
+
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
+  if (speechPollTimer) clearInterval(speechPollTimer)
   if (directiveTimer) clearInterval(directiveTimer)
   if (contextTimer) clearInterval(contextTimer)
 })
@@ -474,6 +556,59 @@ onUnmounted(() => {
               <div class="vps-row"><span class="vps-label">RAM</span><div class="vps-track"><div class="vps-fill" style="width:0%"></div></div><span class="vps-pct">—</span></div>
               <div class="vps-row"><span class="vps-label">DISK</span><div class="vps-track"><div class="vps-fill" style="width:0%"></div></div><span class="vps-pct">—</span></div>
               <div class="vps-detail vps-detail-empty">health недоступен (пересобери backend)</div>
+            </div>
+          </div>
+
+          <!-- AI Credits -->
+          <div class="ops-card">
+            <div class="ops-card-header">
+              <span class="ops-eyebrow">AI Balance</span>
+              <span class="ops-title">Баланс нейросетей</span>
+            </div>
+            <div v-if="credits !== null" class="vps-health">
+              <div class="credits-row">
+                <span class="credits-label">RouterAI</span>
+                <span class="credits-value">{{ credits.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) }}</span>
+              </div>
+              <div class="credits-hint">обновляется с пингом Hermes</div>
+            </div>
+            <div v-else class="vps-health vps-empty">
+              <div class="vps-row"><span class="vps-label">Credits</span><div class="vps-track"><div class="vps-fill" style="width:0%"></div></div><span class="vps-pct">—</span></div>
+              <div class="vps-detail vps-detail-empty">{{ creditsError || 'баланс недоступен' }}</div>
+            </div>
+          </div>
+
+          <!-- Speech Recognition -->
+          <div class="ops-card">
+            <div class="ops-card-header">
+              <span class="ops-eyebrow">Speech</span>
+              <span class="ops-title">Распознавание речи</span>
+            </div>
+            <div class="speech-status-row">
+              <span class="speech-indicator" :class="speech.status?.connected ? 'on' : 'off'"></span>
+              <span class="speech-status-text">
+                {{ speech.status?.connected ? 'STT слушает (whisper)' : 'STT не подключён' }}
+              </span>
+              <span v-if="speech.status?.bufferSeconds" class="speech-buffer">{{ speech.status.bufferSeconds }} сек буфер</span>
+            </div>
+            <button
+              class="speech-capture-btn"
+              @click="captureSpeech"
+              :disabled="speech.loading"
+            >
+              <span v-if="speech.loading" class="speech-spinner">●</span>
+              <span v-else>🎤</span>
+              {{ speech.loading ? 'Распознаю…' : 'Распознать речь' }}
+            </button>
+            <div v-if="speech.lastText" class="speech-result">
+              <div class="speech-result-header">
+                <span class="speech-result-label">Последнее распознанное</span>
+                <span class="speech-result-time">{{ speech.lastAt }}</span>
+              </div>
+              <div class="speech-result-text">{{ speech.lastText }}</div>
+            </div>
+            <div v-if="speech.error && !speech.lastText" class="speech-error-line">
+              ⚠ {{ speech.error }}
             </div>
           </div>
 
@@ -684,6 +819,19 @@ onUnmounted(() => {
 .vps-sep { opacity: 0.4; margin: 0 var(--space-1); }
 .vps-detail-empty { opacity: 0.5; }
 
+/* AI Credits */
+.credits-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.credits-label {
+  font: 500 10px var(--font-mono);
+  color: var(--text-muted); letter-spacing: var(--letter-spacing-wide);
+}
+.credits-value {
+  font: 600 var(--font-size-lg) var(--font-mono);
+  color: var(--brand-mint);
+  font-variant-numeric: tabular-nums;
+}
+.credits-hint { font: 400 10px var(--font-mono); color: var(--text-muted); opacity: 0.6; }
+
 /* Ops footer */
 .ops-footer {
   grid-column: 1 / -1;
@@ -770,4 +918,76 @@ onUnmounted(() => {
 
 .empty { padding: var(--space-4); color: var(--text-muted); font-size: var(--font-size-sm); text-align: center; }
 .error-text { color: var(--brand-red); }
+
+/* ═══ Speech recognition (whisper STT) ═══ */
+.speech-status-row {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) 0;
+  font-size: var(--font-size-sm);
+}
+.speech-indicator {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  background: var(--brand-red); opacity: 0.5;
+}
+.speech-indicator.on {
+  background: var(--brand-mint);
+  box-shadow: 0 0 8px var(--brand-mint);
+  opacity: 1;
+  animation: speech-pulse 2s infinite;
+}
+@keyframes speech-pulse {
+  0%, 100% { box-shadow: 0 0 4px var(--brand-mint); }
+  50%      { box-shadow: 0 0 12px var(--brand-mint); }
+}
+.speech-status-text { color: var(--text-primary); flex: 1; }
+.speech-buffer {
+  font: 400 var(--font-size-xs) var(--font-mono);
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.05);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+}
+.speech-capture-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-glass);
+  background: linear-gradient(135deg, rgba(124,92,255,0.18), rgba(94,226,181,0.10));
+  color: var(--text-primary);
+  font: 600 var(--font-size-sm) var(--font-display);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin: var(--space-1) 0;
+}
+.speech-capture-btn:hover:not(:disabled) {
+  border-color: var(--brand-violet);
+  box-shadow: 0 0 16px rgba(124,92,255,0.25);
+}
+.speech-capture-btn:disabled { opacity: 0.6; cursor: default; }
+.speech-spinner { color: var(--brand-cyan); animation: speech-pulse 1s infinite; }
+.speech-result {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: rgba(124,92,255,0.08);
+  border: 1px solid rgba(124,92,255,0.25);
+  border-radius: var(--radius-md);
+}
+.speech-result-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 4px;
+}
+.speech-result-label {
+  font: 500 9px var(--font-mono); color: var(--text-muted);
+  letter-spacing: var(--letter-spacing-wide); text-transform: uppercase;
+}
+.speech-result-time { font: 400 10px var(--font-mono); color: var(--text-muted); }
+.speech-result-text {
+  font-size: var(--font-size-sm); color: var(--text-primary);
+  line-height: 1.5; word-break: break-word;
+}
+.speech-error-line {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-xs); color: var(--brand-red);
+}
 </style>

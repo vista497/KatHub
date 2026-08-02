@@ -114,7 +114,10 @@ onMounted(async () => {
 
 <template>
   <div class="models-panel">
-    <h2 class="panel-title">🔄 Модели</h2>
+    <div class="panel-header">
+      <span class="ops-eyebrow">Models</span>
+      <span class="ops-title">Модели</span>
+    </div>
 
     <!-- Loading -->
     <div v-if="loading" class="state-msg">Загрузка моделей…</div>
@@ -126,66 +129,69 @@ onMounted(async () => {
 
     <!-- Content -->
     <template v-else>
-      <!-- Provider selector -->
-      <label class="field">
-        <span class="label-text">Провайдер</span>
-        <select
-          v-model="selectedProvider"
-          class="select"
-        >
-          <option :value="null">Все провайдеры</option>
-          <option
-            v-for="p in providers"
-            :key="p"
-            :value="p"
-          >{{ p }}</option>
-        </select>
-      </label>
-
-      <!-- Model selector -->
-      <label class="field">
-        <span class="label-text">Модель</span>
-        <select
-          v-model="selectedModel"
-          class="select"
-        >
-          <option :value="null">Выберите модель…</option>
-          <option
-            v-for="m in filteredModels"
-            :key="`${m.provider}/${m.name}`"
-            :value="m.name"
-            :class="{ current: m.name === currentModel }"
-            :disabled="!m.available"
+      <div class="models-card">
+        <!-- Provider selector -->
+        <label class="field">
+          <span class="label-text">Провайдер</span>
+          <select
+            v-model="selectedProvider"
+            class="select"
           >
-            {{ m.name }}
-            {{ m.name === currentModel ? ' (current)' : '' }}
-            {{ !m.available ? ' [offline]' : '' }}
-          </option>
-        </select>
-      </label>
+            <option :value="null">Все провайдеры</option>
+            <option
+              v-for="p in providers"
+              :key="p"
+              :value="p"
+            >{{ p }}</option>
+          </select>
+        </label>
 
-      <!-- Current model indicator -->
-      <div v-if="currentModel" class="current-badge">
-        <span class="badge-dot active"></span>
-        Current: <strong>{{ currentModel }}</strong>
+        <!-- Model selector -->
+        <label class="field">
+          <span class="label-text">Модель</span>
+          <select
+            v-model="selectedModel"
+            class="select"
+          >
+            <option :value="null">Выберите модель…</option>
+            <option
+              v-for="m in filteredModels"
+              :key="`${m.provider}/${m.name}`"
+              :value="m.name"
+              :class="{ current: m.name === currentModel }"
+              :disabled="!m.available"
+            >
+              {{ m.name }}
+              {{ m.name === currentModel ? ' (current)' : '' }}
+              {{ !m.available ? ' [offline]' : '' }}
+            </option>
+          </select>
+        </label>
+
+        <!-- Current model indicator -->
+        <div v-if="currentModel" class="current-badge">
+          <span class="badge-dot active"></span>
+          <span class="badge-label">Current</span>
+          <strong class="badge-value">{{ currentModel }}</strong>
+        </div>
+        <div v-else class="current-badge">
+          <span class="badge-dot inactive"></span>
+          <span class="badge-label">No active model</span>
+        </div>
+
+        <!-- Apply button -->
+        <button
+          class="btn-apply"
+          :disabled="!canSwitch"
+          @click="applyModel"
+        >
+          {{ switching ? 'Switching…' : 'Применить' }}
+        </button>
+
+        <!-- Feedback -->
+        <div v-if="switchResult" class="feedback success">{{ switchResult }}</div>
+        <div v-if="switchError" class="feedback error">{{ switchError }}</div>
       </div>
-      <div v-else class="current-badge">
-        <span class="badge-dot inactive"></span>
-        No active model
-      </div>
-
-      <!-- Apply button -->
-      <button
-        class="btn-apply"
-        :disabled="!canSwitch"
-        @click="applyModel"
-      >
-        {{ switching ? 'Switching...' : 'Apply' }}
-      </button>
-
-      <!-- Feedback -->
-      <div v-if="switchResult" class="feedback success">{{ switchResult }}</div>
-      <div v-if="switchError" class="feedback error">{{ switchError }}</div>
     </template>
   </div>
 </template>
@@ -193,24 +199,51 @@ onMounted(async () => {
 <style scoped>
 .models-panel {
   padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-.panel-title {
-  font-size: var(--font-size-lg);
-  font-weight: 700;
-  color: var(--color-text-primary);
-  margin-bottom: var(--space-4);
+.panel-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ops-eyebrow {
+  font: 500 var(--font-size-xs) var(--font-mono);
+  color: var(--text-muted); letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+.ops-title {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 500; color: var(--text-primary);
+  line-height: 1; letter-spacing: -0.02em;
+}
+
+.models-card {
+  max-width: 560px;
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur-heavy);
+  -webkit-backdrop-filter: var(--blur-heavy);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
 }
 
 .state-msg {
   padding: var(--space-4);
-  color: var(--color-text-secondary);
+  color: var(--text-muted);
   text-align: center;
-  font-size: var(--font-size-sm);
-}
-
-.state-msg.muted {
-  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  opacity: 0.5;
 }
 
 /* ── Fields ─────────────────────────────────── */
@@ -222,33 +255,32 @@ onMounted(async () => {
 }
 
 .label-text {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
+  font: 600 var(--font-size-xs) var(--font-mono);
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
+  letter-spacing: var(--letter-spacing-wide);
 }
 
 .select {
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-primary);
+  background: var(--bg-glass-solid);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
   padding: var(--space-2) var(--space-3);
   font-size: var(--font-size-sm);
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   cursor: pointer;
   transition: border-color var(--transition-fast);
 }
 
 .select:focus {
   outline: none;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.2);
+  border-color: var(--brand-violet);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
 }
 
 .select option.current {
-  color: var(--color-accent-secondary);
+  color: var(--brand-cyan);
   font-weight: 600;
 }
 
@@ -258,39 +290,54 @@ onMounted(async () => {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
-  background: rgba(124, 92, 255, 0.08);
-  border: 1px solid rgba(124, 92, 255, 0.15);
-  border-radius: var(--radius-sm);
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  color: var(--text-muted);
   margin-bottom: var(--space-4);
 }
 
 .badge-dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   flex-shrink: 0;
 }
 
 .badge-dot.active {
-  background: #4ade80;
-  box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+  background: var(--brand-mint);
+  box-shadow: 0 0 6px var(--brand-mint);
 }
 
 .badge-dot.inactive {
-  background: #f87171;
-  box-shadow: 0 0 6px rgba(248, 113, 113, 0.4);
+  background: var(--brand-red);
+  box-shadow: 0 0 6px rgba(242, 109, 109, 0.4);
+}
+
+.badge-label {
+  font: 500 9px var(--font-mono);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+.badge-value {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Apply button ───────────────────────────── */
 .btn-apply {
   width: 100%;
   padding: var(--space-3) var(--space-4);
-  background: var(--color-accent);
+  background: var(--brand-violet);
   color: #fff;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   font-weight: 600;
   font-family: var(--font-sans);
@@ -299,8 +346,8 @@ onMounted(async () => {
 }
 
 .btn-apply:hover:not(:disabled) {
-  background: #9575ff;
-  box-shadow: 0 0 12px rgba(124, 92, 255, 0.4);
+  background: var(--brand-violet-glow);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.4);
 }
 
 .btn-apply:disabled {
@@ -312,20 +359,21 @@ onMounted(async () => {
 .feedback {
   margin-top: var(--space-3);
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
   font-size: var(--font-size-xs);
   font-weight: 500;
 }
 
 .feedback.success {
-  background: rgba(74, 222, 128, 0.1);
-  color: #4ade80;
-  border: 1px solid rgba(74, 222, 128, 0.25);
+  background: rgba(94, 226, 181, 0.1);
+  color: var(--brand-mint);
+  border: 1px solid rgba(94, 226, 181, 0.25);
 }
 
 .feedback.error {
-  background: rgba(248, 113, 113, 0.1);
-  color: #f87171;
-  border: 1px solid rgba(248, 113, 113, 0.25);
+  background: rgba(242, 109, 109, 0.1);
+  color: var(--brand-red);
+  border: 1px solid rgba(242, 109, 109, 0.25);
 }
 </style>

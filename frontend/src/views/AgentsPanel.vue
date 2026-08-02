@@ -82,7 +82,10 @@ onUnmounted(() => {
 
 <template>
   <div class="agents-panel">
-    <h2 class="panel-title">🤖 Агенты</h2>
+    <div class="panel-header">
+      <span class="ops-eyebrow">Agents</span>
+      <span class="ops-title">Агенты</span>
+    </div>
 
     <div v-if="loading && agents.length === 0" class="state-msg">Загрузка агентов…</div>
     <div v-else-if="error && agents.length === 0" class="state-msg error-text">{{ error }}</div>
@@ -133,28 +136,50 @@ onUnmounted(() => {
 <style scoped>
 .agents-panel {
   padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-.panel-title {
-  font-size: var(--font-size-lg);
-  font-weight: 700;
-  color: var(--color-text-primary);
-  margin-bottom: var(--space-4);
+.panel-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ops-eyebrow {
+  font: 500 var(--font-size-xs) var(--font-mono);
+  color: var(--text-muted); letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+.ops-title {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 500; color: var(--text-primary);
+  line-height: 1; letter-spacing: -0.02em;
 }
 
 .state-msg {
   padding: var(--space-4);
-  color: var(--color-text-secondary);
+  color: var(--text-muted);
   text-align: center;
-  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  opacity: 0.5;
 }
 
 .state-msg.muted {
-  color: var(--color-text-muted);
+  opacity: 0.4;
 }
 
 .error-text {
-  color: #f87171;
+  color: var(--brand-red);
+  opacity: 1;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 /* ── Agent card ─────────────────────────────── */
@@ -163,15 +188,21 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: var(--space-3);
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur-heavy);
+  -webkit-backdrop-filter: var(--blur-heavy);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-lg);
   margin-bottom: var(--space-2);
-  transition: border-color var(--transition-fast);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
 .agent-card.active {
-  border-color: rgba(74, 222, 128, 0.15);
+  border-color: rgba(94, 226, 181, 0.3);
+}
+
+.agent-card:hover {
+  border-color: rgba(139, 92, 246, 0.4);
 }
 
 .agent-main {
@@ -185,19 +216,20 @@ onUnmounted(() => {
 .status-circle {
   width: 10px;
   height: 10px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   flex-shrink: 0;
   transition: all var(--transition-fast);
 }
 
 .status-circle.on {
-  background: #4ade80;
-  box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+  background: var(--brand-mint);
+  box-shadow: 0 0 8px var(--brand-mint);
 }
 
 .status-circle.off {
-  background: #666;
+  background: var(--text-muted);
   box-shadow: none;
+  opacity: 0.4;
 }
 
 /* ── Agent info ─────────────────────────────── */
@@ -209,9 +241,10 @@ onUnmounted(() => {
 }
 
 .agent-name {
+  font-family: var(--font-display);
   font-size: var(--font-size-sm);
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -219,12 +252,12 @@ onUnmounted(() => {
 
 .agent-model {
   font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
+  color: var(--brand-cyan);
   font-family: var(--font-mono);
 }
 
 .agent-model.muted {
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -239,51 +272,52 @@ onUnmounted(() => {
 .btn-chat {
   width: 30px;
   height: 30px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   font-size: 14px;
   cursor: pointer;
   transition: all var(--transition-fast);
-  border: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text-secondary);
+  border: 1px solid var(--border-glass);
+  background: var(--bg-glass);
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .btn-chat:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  background: rgba(124, 92, 255, 0.12);
+  border-color: var(--brand-violet);
+  background: rgba(139, 92, 246, 0.12);
+  color: var(--brand-violet-glow);
 }
 
 /* ── Toggle button ──────────────────────────── */
 .btn-toggle {
   padding: 4px 14px;
   border-radius: var(--radius-full);
-  font-size: 11px;
-  font-weight: 600;
-  font-family: var(--font-sans);
+  font: 500 10px var(--font-mono);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
   cursor: pointer;
   transition: all var(--transition-fast);
-  border: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text-secondary);
+  border: 1px solid var(--border-glass);
+  background: var(--bg-glass);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .btn-toggle:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  border-color: var(--brand-violet);
+  color: var(--brand-violet-glow);
 }
 
 .btn-toggle.on {
-  background: rgba(248, 113, 113, 0.12);
-  border-color: rgba(248, 113, 113, 0.3);
-  color: #f87171;
+  background: rgba(242, 109, 109, 0.12);
+  border-color: rgba(242, 109, 109, 0.3);
+  color: var(--brand-red);
 }
 
 .btn-toggle.on:hover:not(:disabled) {
-  background: rgba(248, 113, 113, 0.25);
+  background: rgba(242, 109, 109, 0.25);
   color: #ef4444;
 }
 

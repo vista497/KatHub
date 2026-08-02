@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 export interface ToolCall {
   name: string
@@ -24,8 +24,23 @@ export interface ChatSession {
   title: string
   messages: ChatMessage[]
   lastMessageId?: number
-  updatedAt?: string
+  updatedAt?: string | number
   source?: string
+  messageCount?: number
+}
+
+/** KatHub-чатовая сессия: создана через POST /api/sessions (id api_*), source api_server */
+export function isOwnChatSession(s: { id: string; source?: string }): boolean {
+  return s.source === 'api_server' && s.id.startsWith('api_')
+}
+
+// Явная подпись сессии для заголовка чата: «title [source · id]» —
+// чтобы всегда было видно, в какую именно сессию идёт отправка.
+export function sessionLabel(s?: { id: string; source?: string; title?: string } | null): string {
+  if (!s) return 'Chat'
+  const src = s.source || '?'
+  const title = s.title && s.title !== s.id ? s.title : s.id
+  return `${title} [${src} · ${s.id}]`
 }
 
 /** Pending Hermes approval surfaced via /api/chat/approvals */
@@ -40,6 +55,7 @@ export interface ApprovalRequest {
 const PAGE_SIZE = 50
 const POLL_INTERVAL = 3000
 const APPROVAL_POLL_INTERVAL = 1500
+const ACTIVE_SESSION_KEY = 'kathub-active-session'
 
 /** Parse tool_calls into ToolCall[] — handles both JSON array and Python repr string */
 function parseToolCalls(raw: any): ToolCall[] {
@@ -242,6 +258,7 @@ export const useChatStore = defineStore('chat', () => {
           lastMessageId: s.last_message_id || 0,
           updatedAt: s.updated_at || s.last_active || '',
           source: s.source || '',
+          messageCount: s.message_count || 0,
           messages: []
         }))
     } catch (e) {
@@ -329,6 +346,8 @@ export const useChatStore = defineStore('chat', () => {
   async function sendMessage(text: string) {
     if (!text.trim() || sending.value) return
     const sid = activeSessionId.value
+    // Писать можно в любую сессию — пользователь управляет всеми из KatHub
+    // (telegram/cli/cron/api_*). Отправка идёт в выбранную сессию как есть.
 
     messages.value.push({
       id: 'local-' + Date.now(),
@@ -389,6 +408,7 @@ export const useChatStore = defineStore('chat', () => {
         lastMessageId: s.last_message_id || prev?.lastMessageId || 0,
         updatedAt: s.updated_at || s.last_active || prev?.updatedAt || '',
         source: s.source || prev?.source || '',
+        messageCount: s.message_count || prev?.messageCount || 0,
         messages: prev?.messages || [],
       })
     }
@@ -503,15 +523,34 @@ export const useChatStore = defineStore('chat', () => {
   }
   function toggleSessions() { sessionsVisible.value = !sessionsVisible.value }
 
-  loadSessions().then(() => {
-    if (sessions.value.length > 0) {
-      const telegramSessions = sessions.value.filter(s => s.source === 'telegram')
-      const best = telegramSessions.length > 0
-        ? telegramSessions[0]
-        : sessions.value[0]
+  // ── Persist active session ─────────────────────────────────
+  function persistActiveSession() {
+    try {
+      const id = activeSessionId.value
+      if (id) localStorage.setItem(ACTIVE_SESSION_KEY, id)
+      else localStorage.removeItem(ACTIVE_SESSION_KEY)
+    } catch { /* storage unavailable */ }
+  }
+  watch(activeSessionId, persistActiveSession)
 
-      openSession(best.id)
-    }
+  loadSessions().then(() => {
+    // 1. Восстановить сохранённую активную сессию (любую)
+    let savedId: string | null = null
+    try { savedId = localStorage.getItem(ACTIVE_SESSION_KEY) } catch { /* ignore */ }
+    const saved = savedId ? sessions.value.find(s => s.id === savedId) : undefined
+    if (saved) { openSession(saved.id); return }
+
+    // 2. Последняя активная сессия с сообщениями, самая свежая по updatedAt
+    const any = sessions.value
+      .filter(s => (s.messageCount ?? 0) > 0)
+      .sort((a, b) => {
+        const ta = typeof a.updatedAt === 'number' ? a.updatedAt : 0
+        const tb = typeof b.updatedAt === 'number' ? b.updatedAt : 0
+        return tb - ta
+      })
+    if (any.length > 0) { openSession(any[0].id); return }
+
+    activeSessionId.value = null
   })
 
   return {

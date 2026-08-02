@@ -1,6 +1,7 @@
 #include "ChatHandler.h"
 #include "HermesApiClient.h"
 #include "PluginRegistry.h"
+#include "Logger.h"
 
 #include "httplib.h"
 
@@ -77,6 +78,17 @@ void ChatHandler::handleChat(const char* request, void* response)
     std::string sessionId = reqObj.value("sessionId").toString().toStdString();
     bool resume = !sessionId.empty();
 
+    // [ChatSend] ОТЛАДКА ОТПРАВКИ: что реально прислал фронт.
+    // Если sessionId пуст — фронт не передал активную сессию, и бэкенд
+    // создаст НОВУЮ (это и есть типичная причина «ушло не в ту сессию»).
+    {
+        QString msgPreview = message.left(80);
+        msgPreview.replace('\n', ' ');
+        LOG_INFO("[ChatSend] POST /api/chat -> sessionId='" + sessionId
+                 + "' resume=" + (resume ? "true" : "false")
+                 + " message='" + msgPreview.toStdString() + "'");
+    }
+
     // New session? Create it explicitly via the Hermes API so the id is
     // known up-front (no fragile parsing of `hermes sessions list`).
     if (!resume) {
@@ -103,69 +115,100 @@ void ChatHandler::handleChat(const char* request, void* response)
             QJsonObject err;
             err["error"] = QString::fromStdString(
                 !createResp.empty() ? createResp : "Failed to create session");
+            LOG_ERROR("[ChatSend] createSession FAILED: "
+                      + (!createResp.empty() ? createResp : "empty response"));
             res->set_content(QJsonDocument(err).toJson(QJsonDocument::Compact).toStdString(),
                              "application/json; charset=utf-8");
             return;
         }
+        LOG_INFO("[ChatSend] создана НОВАЯ сессия (фронт не прислал sessionId): '"
+                 + sessionId + "'");
         resume = true;  // continue the freshly created session
     }
 
-    // Start a run via the Hermes API. /v1/runs streams events (SSE): the
-    // run.completed output becomes the reply, and approval.request events
-    // are parked in pendingBySession_ so the frontend can render the modal.
-    std::string runId = api_->startRun(sessionId, message.toStdString());
-    if (runId.empty() || runId.rfind("run_", 0) != 0) {
+    // Send via POST /v1/chat/completions with X-Hermes-Session-Id header —
+    // EXACTLY like AI_ControllerApp does. The api_server resumes the session
+    // identified by that header (loads its history from state.db), so the
+    // reply reliably lands in the session the frontend asked for.
+    // (Diagnosed 2026-08-02: /v1/runs ignored the passed session_id and kept
+    // using the api_server "current" session; /api/sessions/{id}/chat still
+    // showed the wrong session from the user's perspective.)
+    QString chatPreview = message.left(80);
+    chatPreview.replace('\n', ' ');
+    LOG_INFO("[ChatSend] HermesApiClient::chatCompletions session_id='" + sessionId
+             + "' -> POST /v1/chat/completions message='"
+             + chatPreview.toStdString() + "'");
+
+    std::string output = api_->chatCompletions(sessionId, message.toStdString());
+
+    // chatCompletions() returns the accumulated assistant text, or a
+    // JSON {"error": ...} body on transport/HTTP failure. It also appends a
+    // "[SESSION_ID=...]" marker line when Hermes rotated the session id.
+    QJsonParseError oerr;
+    QJsonDocument odoc = QJsonDocument::fromJson(
+        QByteArray::fromStdString(output), &oerr);
+    QString reply;
+
+    if (oerr.error == QJsonParseError::NoError && odoc.isObject()) {
+        QJsonObject obj = odoc.object();
+        if (obj.contains("error")) {
+            QString errMsg = obj.value("error").toString();
+            LOG_ERROR("[ChatSend] chatCompletions FAILED session='" + sessionId
+                      + "' -> " + errMsg.toStdString());
+            res->status = 502;
+            res->set_content(output, "application/json; charset=utf-8");
+            return;
+        }
+    }
+
+    // Strip the optional session-rotation marker before showing the reply.
+    reply = QString::fromStdString(output);
+    const QString kSessionMarker = "[SESSION_ID=";
+    int markerPos = reply.indexOf(kSessionMarker);
+    if (markerPos >= 0) {
+        QString effSession = reply.mid(markerPos + kSessionMarker.size());
+        int end = effSession.indexOf(']');
+        if (end >= 0) {
+            effSession = effSession.left(end);
+            if (!effSession.isEmpty())
+                sessionId = effSession.toStdString();
+        }
+        reply = reply.left(markerPos);
+    }
+
+    if (reply.isEmpty() && !output.empty()) {
+        // Non-JSON body with no text and no error — transport-level failure.
+        LOG_ERROR("[ChatSend] chatCompletions FAILED session='" + sessionId
+                  + "' -> non-JSON body: "
+                  + QString::fromStdString(output).left(200).toStdString());
         res->status = 502;
         QJsonObject err;
-        err["error"] = QString::fromStdString(
-            !runId.empty() ? runId : "Failed to start run");
+        err["error"] = QString::fromStdString(output);
+        res->set_content(QJsonDocument(err).toJson(QJsonDocument::Compact).toStdString(),
+                         "application/json; charset=utf-8");
+        return;
+    }
+    if (reply.isEmpty()) {
+        LOG_ERROR("[ChatSend] chatCompletions FAILED session='" + sessionId
+                  + "' -> пустой ответ от Hermes");
+        res->status = 502;
+        QJsonObject err;
+        err["error"] = "Empty response from Hermes /v1/chat/completions";
         res->set_content(QJsonDocument(err).toJson(QJsonDocument::Compact).toStdString(),
                          "application/json; charset=utf-8");
         return;
     }
 
-    std::string output = api_->streamRunEvents(runId, [&](const QJsonObject& ev) {
-        std::string etype = ev.value("event").toString().toStdString();
-        if (etype == "approval.request") {
-            PendingApproval pa;
-            pa.runId = runId;
-            pa.sessionId = sessionId;
-            pa.command = ev.value("command").toString().toStdString();
-            pa.description = ev.value("description").toString().toStdString();
-            pa.timestamp = ev.value("timestamp").toDouble();
-            const QJsonArray choicesArr = ev.value("choices").toArray();
-            for (const auto& c : choicesArr)
-                pa.choices.push_back(c.toString().toStdString());
-            std::lock_guard<std::mutex> lock(approvalsMutex_);
-            pendingBySession_[sessionId] = std::move(pa);
-            sessionByRun_[runId] = sessionId;
-        } else if (etype == "run.completed" || etype == "run.failed" ||
-                   etype == "run.cancelled") {
-            // Terminal event — drop any parked approval for this run.
-            std::lock_guard<std::mutex> lock(approvalsMutex_);
-            auto it = sessionByRun_.find(runId);
-            if (it != sessionByRun_.end()) {
-                pendingBySession_.erase(it->second);
-                sessionByRun_.erase(it);
-            }
-        }
-    });
-
-    // streamRunEvents returns the run.completed output (or a run.failed
-    // error string, or a JSON {"error": ...} if the SSE transport failed).
-    QJsonParseError oerr;
-    QJsonDocument odoc = QJsonDocument::fromJson(
-        QByteArray::fromStdString(output), &oerr);
-    if (oerr.error == QJsonParseError::NoError && odoc.isObject() &&
-        odoc.object().contains("error")) {
-        res->status = 502;
-        res->set_content(output, "application/json; charset=utf-8");
-        return;
-    }
-
-    QString reply = QString::fromStdString(output);
     while (!reply.isEmpty() && reply.back().isSpace())
         reply.chop(1);
+
+    {
+        QString replyPreview = reply.left(100);
+        replyPreview.replace('\n', ' ');
+        LOG_INFO("[ChatSend] ОТПРАВЛЕНО в сессию '" + sessionId
+                 + "' reply_len=" + std::to_string(reply.size())
+                 + " reply_head='" + replyPreview.toStdString() + "'");
+    }
 
     QJsonObject replyObj;
     replyObj["sessionId"] = QString::fromStdString(sessionId);

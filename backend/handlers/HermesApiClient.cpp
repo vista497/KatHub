@@ -1,5 +1,6 @@
 #include "HermesApiClient.h"
 
+#include "Logger.h"
 #include "httplib.h"
 
 #include <QJsonDocument>
@@ -92,6 +93,134 @@ std::string HermesApiClient::chat(const std::string& sessionId, const std::strin
     return request("POST", "/api/sessions/" + sessionId + "/chat", json.toStdString());
 }
 
+std::string HermesApiClient::chatCompletions(const std::string& sessionId,
+                                             const std::string& message)
+{
+    // POST /v1/chat/completions with the session passed via the
+    // X-Hermes-Session-Id header. This is EXACTLY how AI_ControllerApp
+    // sends messages: the Hermes api_server loads the session history by
+    // that header (api_server.py: _handle_chat_completions) and resumes
+    // THAT session — no ambiguity about which session the reply lands in.
+    QJsonObject body;
+    body["model"]  = QStringLiteral("hermes-agent");
+    body["stream"] = true;
+
+    QJsonArray messages;
+    QJsonObject userMsg;
+    userMsg["role"]    = QStringLiteral("user");
+    userMsg["content"] = QString::fromStdString(message);
+    messages.append(userMsg);
+    body["messages"] = messages;
+    body["deliver"]  = QStringLiteral("origin");
+
+    QByteArray json = QJsonDocument(body).toJson(QJsonDocument::Compact);
+
+    httplib::Client cli(baseUrl_);
+    cli.set_connection_timeout(10);
+    cli.set_read_timeout(60);  // per-chunk; SSE keepalives arrive ~30s
+
+    httplib::Headers headers = {
+        {"Authorization", "Bearer " + apiKey_},
+        {"Accept", "text/event-stream"},
+        {"X-Hermes-Session-Id", sessionId},
+    };
+
+    std::string buffer;       // partial SSE frame
+    std::string finalOutput;  // accumulated delta.content
+    bool doneSeen = false;
+
+    {
+        QString msgPreview = QString::fromStdString(message).left(80);
+        msgPreview.replace('\n', ' ');
+        LOG_INFO("[ChatSend] HermesApiClient::chatCompletions session_id='"
+                 + sessionId + "' -> POST /v1/chat/completions"
+                 + " X-Hermes-Session-Id='" + sessionId
+                 + "' message='" + msgPreview.toStdString() + "'");
+    }
+
+    httplib::Result res = cli.Post("/v1/chat/completions", headers, json.toStdString(),
+        "application/json",
+        [&](const char* data, size_t len) -> bool {
+            buffer.append(data, len);
+            // Split on SSE frame boundary (double newline).
+            size_t pos;
+            while ((pos = buffer.find("\n\n")) != std::string::npos) {
+                std::string frame = buffer.substr(0, pos);
+                buffer.erase(0, pos + 2);
+
+                // Extract the "data: " payload (may span multiple data: lines).
+                std::string payload;
+                size_t dpos = 0;
+                while ((dpos = frame.find("data:")) != std::string::npos) {
+                    size_t lineEnd = frame.find('\n', dpos);
+                    std::string line = frame.substr(
+                        dpos + 5, lineEnd == std::string::npos
+                            ? std::string::npos : lineEnd - dpos - 5);
+                    // SSE "data: {json}" has a space after the colon; strip it
+                    if (!line.empty() && line.front() == ' ')
+                        line.erase(0, 1);
+                    // Strip a trailing CR left by CRLF frames.
+                    if (!line.empty() && line.back() == 13)
+                        line.pop_back();
+                    payload += line;
+                    if (lineEnd == std::string::npos)
+                        break;
+                    frame.erase(0, lineEnd + 1);
+                }
+
+                // OpenAI chat.completion.chunk SSE: final sentinel is "[DONE]".
+                if (payload == "[DONE]") {
+                    doneSeen = true;
+                    continue;
+                }
+                if (payload.empty() || payload[0] != '{')
+                    continue;  // keepalive comment or non-JSON
+
+                QJsonParseError err;
+                QJsonDocument doc = QJsonDocument::fromJson(
+                    QByteArray::fromStdString(payload), &err);
+                if (err.error != QJsonParseError::NoError || !doc.isObject())
+                    continue;
+
+                QJsonObject chunk = doc.object();
+                QJsonArray choices = chunk.value("choices").toArray();
+                if (choices.isEmpty())
+                    continue;
+                QJsonObject choice = choices.at(0).toObject();
+                QJsonObject delta = choice.value("delta").toObject();
+                QString content = delta.value("content").toString();
+                if (!content.isEmpty())
+                    finalOutput += content.toStdString();
+            }
+            return true;
+        });
+
+    if (!res) {
+        QJsonObject err;
+        err["error"] = QStringLiteral("Chat Completions SSE failed: %1")
+            .arg(httplib::to_string(res.error()).c_str());
+        return QJsonDocument(err).toJson(QJsonDocument::Compact).toStdString();
+    }
+    if (res->status >= 400) {
+        QJsonObject err;
+        err["error"] = QStringLiteral("Chat Completions HTTP %1: %2")
+            .arg(res->status)
+            .arg(QString::fromStdString(res->body).left(200));
+        return QJsonDocument(err).toJson(QJsonDocument::Compact).toStdString();
+    }
+
+    // The effective session id (Hermes can rotate it on context compression)
+    // comes back in the X-Hermes-Session-Id response header. Tag it onto the
+    // returned text so the caller can pick it up if it parses the payload.
+    std::string effSession = res->get_header_value("X-Hermes-Session-Id");
+    if (!effSession.empty() && effSession != sessionId) {
+        LOG_INFO("[ChatSend] chatCompletions: сессия ротирована сервером '"
+                 + sessionId + "' -> '" + effSession + "'");
+        finalOutput += "\n[SESSION_ID=" + effSession + "]";
+    }
+    return finalOutput;
+}
+
 std::string HermesApiClient::deleteSession(const std::string& sessionId)
 {
     return request("DELETE", "/api/sessions/" + sessionId);
@@ -115,6 +244,13 @@ std::string HermesApiClient::startRun(const std::string& sessionId,
         body["session_id"] = QString::fromStdString(sessionId);
 
     QByteArray json = QJsonDocument(body).toJson(QJsonDocument::Compact);
+    {
+        QString msgPreview = QString::fromStdString(message).left(80);
+        msgPreview.replace('\n', ' ');
+        LOG_INFO("[ChatSend] HermesApiClient::startRun session_id='" + sessionId
+                 + "' -> POST /v1/runs body='"
+                 + json.toStdString() + "'");
+    }
     std::string resp = request("POST", "/v1/runs", json.toStdString());
 
     QJsonParseError err;
@@ -163,6 +299,11 @@ std::string HermesApiClient::streamRunEvents(const std::string& runId,
                     std::string line = frame.substr(
                         dpos + 5, lineEnd == std::string::npos
                             ? std::string::npos : lineEnd - dpos - 5);
+                    // SSE "data: {json}" has a space after the colon; strip it
+                    // so payload starts with '{' (otherwise the QJson parse
+                    // check below fails and every event is dropped).
+                    if (!line.empty() && line.front() == ' ')
+                        line.erase(0, 1);
                     // Strip a trailing '\r' left by CRLF frames.
                     if (!line.empty() && line.back() == '\r')
                         line.pop_back();
@@ -197,8 +338,13 @@ std::string HermesApiClient::streamRunEvents(const std::string& runId,
                 if (onEvent)
                     onEvent(event);
 
-                if (terminalSeen)
-                    return false;  // stop reading the stream
+                // NOTE: do NOT return false here to "stop reading the stream".
+                // httplib treats a false return as a canceled connection
+                // (res.error() == ConnectionHandlingCanceled), which makes
+                // the final `if (!res)` branch below return an SSE error and
+                // throw away finalOutput. Hermes closes the stream itself
+                // (": stream closed") right after run.completed, so just keep
+                // reading to a clean end of response.
             }
             return true;
         });

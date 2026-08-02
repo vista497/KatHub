@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { useChatStore } from '../../stores/chatStore'
+import { useChatStore, isOwnChatSession, sessionLabel } from '../../stores/chatStore'
 import { ref, computed, watch, onUnmounted } from 'vue'
 import ChatPanel from './ChatPanel.vue'
 import RawLog from './RawLog.vue'
 
 const chat = useChatStore()
 const activeTab = ref<'chat' | 'raw'>('chat')
+
+const ownSessions = computed(() => chat.sessions.filter(isOwnChatSession))
+const otherSessions = computed(() => chat.sessions.filter(s => !isOwnChatSession(s)))
 
 // Resize state — persist panel width
 const LS_PANEL_WIDTH = 'kathub-panel-width'
@@ -95,8 +98,9 @@ onUnmounted(() => {
         </button>
 
         <div class="sessions-list">
+          <div v-if="ownSessions.length" class="session-group-header">Мои чаты</div>
           <div
-            v-for="s in chat.sessions"
+            v-for="s in ownSessions"
             :key="s.id"
             class="session-item"
             :class="{ active: chat.activeSessionId === s.id }"
@@ -108,6 +112,16 @@ onUnmounted(() => {
               @click.stop="chat.deleteSession(s.id)"
               title="Delete session"
             >✕</button>
+          </div>
+          <div v-if="otherSessions.length" class="session-group-header">Другие (только просмотр)</div>
+          <div
+            v-for="s in otherSessions"
+            :key="s.id"
+            class="session-item readonly"
+            :class="{ active: chat.activeSessionId === s.id }"
+            @click="chat.openSession(s.id)"
+          >
+            <span class="session-title">{{ s.title }}</span>
           </div>
           <div v-if="chat.sessions.length === 0" class="no-sessions">
             No chats yet
@@ -129,7 +143,7 @@ onUnmounted(() => {
       <div class="chat-main">
         <div class="chat-topbar">
           <span class="chat-session-name">
-            {{ chat.sessions.find(s => s.id === chat.activeSessionId)?.title || 'Chat' }}
+            {{ sessionLabel(chat.sessions.find(s => s.id === chat.activeSessionId)) }}
           </span>
           <div class="tab-switcher">
             <button :class="{ active: activeTab === 'chat' }" @click="activeTab = 'chat'">💬</button>
@@ -311,6 +325,18 @@ onUnmounted(() => {
 }
 .session-item.active {
   background: rgba(124, 92, 255, 0.2);
+}
+
+/* Read-only (чужие сессии: telegram/cli/cron/run_*) */
+.session-item.readonly {
+  cursor: default;
+}
+.session-item.readonly .session-title {
+  color: #666888;
+  font-style: italic;
+}
+.session-item.readonly.active .session-title {
+  color: #aaaacc;
 }
 
 .session-title {

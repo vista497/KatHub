@@ -55,7 +55,7 @@ function initGraph() {
     .selectAll('line')
     .data(graph.links)
     .join('line')
-    .attr('stroke', 'rgba(124,92,255,0.12)')
+    .attr('stroke', 'rgba(139,92,246,0.14)')
     .attr('stroke-width', 0.4)
 
   // Nodes
@@ -104,9 +104,9 @@ function initGraph() {
     .attr('r', nodeR)
     .attr('fill', (d: any) => {
       switch (d.type) {
-        case 'folder': return '#ff6b9d'
-        case 'tag': return '#5ce0ff'
-        default: return '#7c5cff'
+        case 'folder': return '#f472b6'
+        case 'tag': return '#7dd3fc'
+        default: return '#8b5cf6'
       }
     })
     .attr('opacity', 0.9)
@@ -134,7 +134,7 @@ function initGraph() {
   const labels = node.append('text')
     .text((d: any) => d.label)
     .attr('font-size', labelSize)
-    .attr('fill', '#ccccee')
+    .attr('fill', '#e8e8f5')
     .attr('dx', labelDx)
     .attr('dy', 3)
     .attr('opacity', 0)
@@ -229,12 +229,12 @@ watch(() => graph.selectedNode, (newVal) => {
     <div class="starfield"></div>
 
     <div v-if="graph.loading" class="overlay">
-      <div class="loading-text">Loading galaxy...</div>
+      <div class="loading-text">Загрузка галактики…</div>
     </div>
 
     <div v-else-if="graph.error" class="overlay">
-      <div class="error-text">⚠️ {{ graph.error }}</div>
-      <button class="retry-btn" @click="graph.fetchGraph">Retry</button>
+      <div class="error-text">⚠ {{ graph.error }}</div>
+      <button class="retry-btn" @click="graph.fetchGraph">Повторить</button>
     </div>
 
     <svg ref="svgRef" class="graph-svg"></svg>
@@ -244,7 +244,7 @@ watch(() => graph.selectedNode, (newVal) => {
     </div>
 
     <div class="zoom-hint" :class="{ hidden: currentZoom >= labelZoomThreshold }">
-      🔍 {{ isTouchDevice ? 'Pinch to zoom' : 'Zoom in for labels' }}
+      {{ isTouchDevice ? 'Щипок — масштаб' : 'Приблизьте для подписей' }}
     </div>
   </div>
 </template>
@@ -370,29 +370,43 @@ watch(() => graph.selectedNode, (newVal) => {
   align-items: center;
   justify-content: center;
   gap: var(--space-4);
-  background: var(--color-bg-primary);
+  background: rgba(6, 4, 16, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   z-index: 10;
 }
 
 .loading-text {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-lg);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
 }
 
 .error-text {
-  color: var(--color-node-folder);
+  color: var(--brand-red);
   font-size: var(--font-size-base);
+  font-family: var(--font-mono);
 }
 
 .retry-btn {
   padding: var(--space-2) var(--space-4);
-  background: var(--color-accent);
-  color: white;
-  border: none;
-  border-radius: var(--radius-md);
+  background: var(--brand-violet);
+  color: #fff;
+  border: 1px solid var(--brand-violet);
+  border-radius: var(--radius-full);
   cursor: pointer;
-  font-family: var(--font-sans);
-  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  transition: all var(--transition-fast);
+}
+
+.retry-btn:hover {
+  background: var(--brand-violet-glow);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.4);
 }
 
 .node-info {
@@ -401,11 +415,14 @@ watch(() => graph.selectedNode, (newVal) => {
   left: 50%;
   transform: translateX(-50%);
   padding: var(--space-2) var(--space-4);
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
+  background: var(--bg-glass-solid);
+  backdrop-filter: var(--blur-heavy);
+  -webkit-backdrop-filter: var(--blur-heavy);
+  border: 1px solid rgba(139, 92, 246, 0.3);
   border-radius: var(--radius-full);
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  color: var(--brand-violet-glow);
   pointer-events: none;
   max-width: 320px;
   overflow: hidden;
@@ -419,10 +436,14 @@ watch(() => graph.selectedNode, (newVal) => {
   left: 50%;
   transform: translateX(-50%);
   padding: var(--space-1) var(--space-3);
-  background: rgba(0,0,0,0.6);
+  background: var(--bg-glass);
+  backdrop-filter: var(--blur-heavy);
+  -webkit-backdrop-filter: var(--blur-heavy);
+  border: 1px solid var(--border-glass);
   border-radius: var(--radius-full);
   font-size: 11px;
-  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  color: var(--text-muted);
   pointer-events: none;
   transition: opacity 0.3s;
 }

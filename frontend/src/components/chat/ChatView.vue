@@ -4,7 +4,7 @@ import ChatMessage from './ChatMessage.vue'
 import ChatInput from './ChatInput.vue'
 import RawLog from './RawLog.vue'
 import ApprovalModal from './ApprovalModal.vue'
-import { useChatStore } from '../../stores/chatStore'
+import { useChatStore, isOwnChatSession, sessionLabel } from '../../stores/chatStore'
 
 const chat = useChatStore()
 const messagesEnd = ref<HTMLDivElement>()
@@ -14,24 +14,22 @@ const sessionFilter = ref('')
 const activeTab = ref<'chat' | 'raw'>('chat')
 
 const activeTitle = computed(() =>
-  chat.sessions.find(s => s.id === chat.activeSessionId)?.title || 'Chat',
+  sessionLabel(chat.sessions.find(s => s.id === chat.activeSessionId)),
 )
 
-const filteredSessions = computed(() => {
+const filteredAll = computed(() => {
   const q = sessionFilter.value.toLowerCase()
-  const all = q
+  return q
     ? chat.sessions.filter(s => s.title.toLowerCase().includes(q))
     : chat.sessions
-  return all.slice(0, sessionPage.value)
 })
 
-const hasMore = computed(() => {
-  const q = sessionFilter.value.toLowerCase()
-  const all = q
-    ? chat.sessions.filter(s => s.title.toLowerCase().includes(q))
-    : chat.sessions
-  return sessionPage.value < all.length
-})
+const sessionGroups = computed(() => [
+  { label: 'Мои чаты', items: filteredAll.value.filter(isOwnChatSession).slice(0, sessionPage.value) },
+  { label: 'Другие', items: filteredAll.value.filter(s => !isOwnChatSession(s)).slice(0, sessionPage.value) },
+])
+
+const hasMore = computed(() => sessionPage.value < filteredAll.value.length)
 
 function handleSend(text: string) {
   chat.sendMessage(text)
@@ -85,23 +83,26 @@ watch(() => chat.messages.length, async () => {
           class="search-input"
         />
       </div>
-      <div
-        v-for="s in filteredSessions"
-        :key="s.id"
-        class="session-option"
-        :class="{ active: s.id === chat.activeSessionId }"
-        @click="selectSession(s.id)"
-      >
-        <span class="session-option-title">{{ s.title }}</span>
-        <button
-          class="session-option-delete"
-          @click.stop="chat.deleteSession(s.id)"
-        >✕</button>
-      </div>
+      <template v-for="group in sessionGroups" :key="group.label">
+        <div v-if="group.items.length" class="session-group-header">{{ group.label }}</div>
+        <div
+          v-for="s in group.items"
+          :key="s.id"
+          class="session-option"
+          :class="{ active: s.id === chat.activeSessionId }"
+          @click="selectSession(s.id)"
+        >
+          <span class="session-option-title">{{ s.title }}</span>
+          <button
+            class="session-option-delete"
+            @click.stop="chat.deleteSession(s.id)"
+          >✕</button>
+        </div>
+      </template>
       <button v-if="hasMore" class="load-more-btn" @click="loadMore">
-        Show more ({{ chat.sessions.length - sessionPage }} left)
+        Show more ({{ filteredAll.length - sessionPage }} left)
       </button>
-      <div v-if="filteredSessions.length === 0" class="no-sessions">
+      <div v-if="filteredAll.length === 0" class="no-sessions">
         {{ sessionFilter ? 'No matches' : 'No chats yet' }}
       </div>
     </div>
@@ -252,6 +253,15 @@ watch(() => chat.messages.length, async () => {
 
 .search-input::placeholder {
   color: #555577;
+}
+
+.session-group-header {
+  padding: 8px 16px 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #555577;
+  background: #0d0d24;
 }
 
 .session-option {
